@@ -137,22 +137,22 @@ def main():
     selected_features = select_features(features, labels, config)
     print(f"Selected features shape: {selected_features.shape}")
 
-    # # 5. Classification
-    # print("\n=== STEP 5: CLASSIFICATION ===")
-    # if selected_features.shape[1] > 0:
-    #     model = train_classifier(selected_features, labels, config)
-    #     print(f"Trained {config.CLASSIFIER_TYPE} classifier")
-    # else:
-    #     print("⚠️  WARNING: Cannot train classifier - no features available!")
-    #     print("Students must implement feature extraction first.")
-    #     model = None
+    # 5. Classification
+    print("\n=== STEP 5: CLASSIFICATION ===")
+    if selected_features.shape[1] > 0:
+        model = train_classifier(selected_features, labels, config)
+        print(f"Trained {config.CLASSIFIER_TYPE} classifier")
+    else:
+        print("⚠️  WARNING: Cannot train classifier - no features available!")
+        print("Students must implement feature extraction first.")
+        model = None
 
-    # # 6. Visualization
-    # print("\n=== STEP 6: VISUALIZATION ===")
-    # if model is not None:
-    #     visualize_results(model, selected_features, labels, config)
-    # else:
-    #     print("Skipping visualization - no trained model")
+    # 6. Visualization
+    print("\n=== STEP 6: VISUALIZATION ===")
+    if model is not None:
+        visualize_results(model, selected_features, labels, config)
+    else:
+        print("Skipping visualization - no trained model")
 
     # # 7. Report Generation
     # print("\n=== STEP 7: PROCESSING LOG & REPORT GENERATION ===")

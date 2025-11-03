@@ -3,6 +3,7 @@ import scipy.stats
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+from sklearn.preprocessing import RobustScaler, StandardScaler
 def extract_time_domain_features(epoch):
     """
     EXAMPLE: Extract basic time-domain features from a single epoch.
@@ -152,17 +153,14 @@ def extract_single_channel_features(data, config):
             features = extract_time_domain_features(epoch)
             # visualize_features(data,epoch_index)  # Visualize features for debugging
             all_features.append(list(features.values()))
-        features = np.array(all_features)
-        feature_names = list(extract_time_domain_features(data[0]).keys())        # 🔹 Show single-epoch visualization (first epoch by default)
-        # visualize_features(data, epoch_index, all_features=all_features, normalize=True)
-        # review_outlier_epochs(data=data,
-        #               features=features,
-        #               feature_names=feature_names,
-        #               feature_key='kurtosis',  # or 'range', 'mean_power', etc.
-        #               fs=100,                  # adjust to your sampling rate
-        #               threshold=2.5)           # Z-score threshold
-        # 🔹 Show overall feature distribution and trends
-        visualize_feature_distributions(features, feature_names, normalize=True)
+        feature_names = list(extract_time_domain_features(data[0]).keys())   
+        df_features = pd.DataFrame(all_features, columns=feature_names)
+        scaler = RobustScaler()
+        normalized_array = scaler.fit_transform(df_features)
+        df_normalized = pd.DataFrame(normalized_array, columns=feature_names)
+        all_features = df_normalized.values.tolist()
+        features = np.array(all_features)     # 🔹 Show single-epoch visualization (first epoch by default)
+        visualize_feature_distributions(features, feature_names)
         visualize_feature_trends(features, feature_names)
 
 
@@ -325,14 +323,12 @@ def visualize_features(data, epoch_index, all_features=None, normalize=True):
     plt.show()
 
 
-def visualize_feature_distributions(features_array, feature_names, normalize=True):
+def visualize_feature_distributions(features_array, feature_names):
     """
     Show feature distributions across all epochs.
     """
     df = pd.DataFrame(features_array, columns=feature_names)
-    if normalize:
-        # Normalize each feature column using z-score
-        df = (df - df.mean()) / df.std()
+
     plt.figure(figsize=(12, 6))
     sns.boxplot(data=df, palette="Blues")
     plt.title("Time-Domain Feature Distribution Across Epochs")
