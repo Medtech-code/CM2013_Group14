@@ -41,15 +41,6 @@ def bandpass_filter(data, low_cutoff, high_cutoff, fs):
     # - High-pass filter to remove DC drift
     # - Notch filter for 50/60 Hz powerline noise
     # - Bandpass filter (e.g., 0.5-40 Hz for EEG)
-<<<<<<< HEAD
-=======
-
-    nyquist = 0.5 * fs
-    normal_cutoff = cutoff / nyquist
-    b, a = butter(order, normal_cutoff, btype='low', analog=False)
-    y = lfilter(b, a, data)
-    return y
->>>>>>> 27bd4eedfc58993fa6d687cf483e460ebefec251
 
     nyquist = 0.5 * fs
     #To test the Zero padding with different orders and padtypes
@@ -104,21 +95,13 @@ def preprocess(data, config, channel_info):
 
     if is_multi_channel:
         print("Processing multi-channel data (EEG + EOG + EMG)")
-<<<<<<< HEAD
         return preprocess_multi_channel(data, config, channel_info)
-=======
-        return preprocess_multi_channel(data, config)
->>>>>>> 27bd4eedfc58993fa6d687cf483e460ebefec251
     else:
         print("Processing single-channel data (backward compatibility)")
         return preprocess_single_channel(data, config)
 
 
-<<<<<<< HEAD
 def preprocess_multi_channel(multi_channel_data, config, channel_info):
-=======
-def preprocess_multi_channel(multi_channel_data, config):
->>>>>>> 27bd4eedfc58993fa6d687cf483e460ebefec251
     """
     Preprocess multi-channel data: 2 EEG + 2 EOG + 1 EMG channels.
     Each channel type may have different sampling rates and require different processing.
@@ -126,7 +109,6 @@ def preprocess_multi_channel(multi_channel_data, config):
     preprocessed_data = {}
 
     # Process EEG channels (2 channels)
-<<<<<<< HEAD
     print("preprocess_multo_channel function")
     eeg_data = multi_channel_data['eeg']
     eeg_fs = channel_info['eeg_fs']  # Actual sampling rate: 125 Hz (TODO: Get from channel_info)
@@ -157,37 +139,17 @@ def preprocess_multi_channel(multi_channel_data, config):
             #print("preprocessed_eeg[epoch, ch, :10]", preprocessed_eeg[epoch, ch, :10])            
 
 
-=======
-    eeg_data = multi_channel_data['eeg']
-    eeg_fs = 125  # Actual sampling rate: 125 Hz (TODO: Get from channel_info)
-    preprocessed_eeg = np.zeros_like(eeg_data)
-
-    for ch in range(eeg_data.shape[1]):
-        for epoch in range(eeg_data.shape[0]):
-            signal = eeg_data[epoch, ch, :]
-            # Apply EEG-specific preprocessing
-            filtered_signal = lowpass_filter(signal, config.LOW_PASS_FILTER_FREQ, eeg_fs)
-            # TODO: Students should add bandpass filter, artifact removal
-            preprocessed_eeg[epoch, ch, :] = filtered_signal
-
-    preprocessed_data['eeg'] = preprocessed_eeg
->>>>>>> 27bd4eedfc58993fa6d687cf483e460ebefec251
 
     if config.CURRENT_ITERATION >= 2:  # EOG starts in iteration 2
         # Process EOG channels (2 channels) - may need different filtering
         eog_data = multi_channel_data['eog']
-<<<<<<< HEAD
         eog_fs = channel_info['eog_fs']   # Actual sampling rate: 50 Hz (TODO: Get from channel_info)
-=======
-        eog_fs = 50  # Actual sampling rate: 50 Hz (TODO: Get from channel_info)
->>>>>>> 27bd4eedfc58993fa6d687cf483e460ebefec251
         preprocessed_eog = np.zeros_like(eog_data)
 
         for ch in range(eog_data.shape[1]):
             for epoch in range(eog_data.shape[0]):
                 signal = eog_data[epoch, ch, :]
                 # EOG may need different filter settings (preserve slow eye movements)
-<<<<<<< HEAD
                 filtered_signal_eog = bandpass_filter(signal, 0.5, 40, eog_fs)  # Lower cutoff for EOG
                 preprocessed_eog[epoch, ch, :] = filtered_signal_eog
         
@@ -236,27 +198,12 @@ def preprocess_multi_channel(multi_channel_data, config):
         # Process EMG channel (1 channel) - may need higher frequency preservation
         emg_data = multi_channel_data['emg']
         emg_fs = channel_info['emg_fs']   # Actual sampling rate: 125 Hz (TODO: Get from channel_info)
-=======
-                filtered_signal = lowpass_filter(signal, 30, eog_fs)  # Lower cutoff for EOG
-                preprocessed_eog[epoch, ch, :] = filtered_signal
-
-        preprocessed_data['eog'] = preprocessed_eog
-
-    if config.CURRENT_ITERATION >= 3:  # EMG starts in iteration 3
-        # Process EMG channel (1 channel) - may need higher frequency preservation
-        emg_data = multi_channel_data['emg']
-        emg_fs = 125  # Actual sampling rate: 125 Hz (TODO: Get from channel_info)
->>>>>>> 27bd4eedfc58993fa6d687cf483e460ebefec251
         preprocessed_emg = np.zeros_like(emg_data)
 
         for epoch in range(emg_data.shape[0]):
             signal = emg_data[epoch, 0, :]
             # EMG needs higher frequency content preserved (muscle activity)
-<<<<<<< HEAD
             filtered_signal = bandpass_filter(signal, 70, emg_fs)  # Higher cutoff for EMG
-=======
-            filtered_signal = lowpass_filter(signal, 70, emg_fs)  # Higher cutoff for EMG
->>>>>>> 27bd4eedfc58993fa6d687cf483e460ebefec251
             preprocessed_emg[epoch, 0, :] = filtered_signal
 
         preprocessed_data['emg'] = preprocessed_emg
@@ -272,32 +219,6 @@ def preprocess_multi_channel(multi_channel_data, config):
     # - Signal quality assessment
     # - Normalization per channel type
 
-<<<<<<< HEAD
-=======
-    return preprocessed_data
-
-
-def preprocess_single_channel(data, config):
-    """
-    Backward compatibility for single-channel preprocessing.
-    """
-    if config.CURRENT_ITERATION == 1:
-        # EXAMPLE: Very basic low-pass filter (students should expand)
-        fs = 125  # Actual EEG sampling rate: 125 Hz (TODO: Get from data/config)
-        preprocessed_data = lowpass_filter(data, config.LOW_PASS_FILTER_FREQ, fs)
-
-    elif config.CURRENT_ITERATION == 2:
-        print("TODO: Implement enhanced preprocessing for iteration 2")
-        preprocessed_data = data  # Placeholder
-
-    elif config.CURRENT_ITERATION >= 3:
-        print("TODO: Students should use multi-channel data format for iteration 3+")
-        preprocessed_data = data  # Placeholder
-
-    else:
-        raise ValueError(f"Invalid iteration: {config.CURRENT_ITERATION}")
-
->>>>>>> 27bd4eedfc58993fa6d687cf483e460ebefec251
     return preprocessed_data
 
 
