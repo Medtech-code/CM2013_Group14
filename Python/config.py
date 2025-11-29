@@ -5,7 +5,7 @@
 CURRENT_ITERATION = 2
 
 # Set to True to use cached data for preprocessing and feature extraction.
-USE_CACHE = False  # Temporarily disabled for testing with real data
+USE_CACHE = True  # Temporarily disabled for testing with real data
 
 # -- File Paths --
 import os
@@ -39,6 +39,7 @@ elif CURRENT_ITERATION == 2:
     CLASSIFIER_TYPE = 'svm'
     SVM_C = 1.0
     SVM_KERNEL = 'rbf'
+    METHOD = 'welch_wavelet'  # Feature extraction method
 elif CURRENT_ITERATION == 3:
     # Iteration 3: Multi-signal processing with Random Forest
     CLASSIFIER_TYPE = 'random_forest'
