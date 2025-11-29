@@ -9,6 +9,10 @@ from scipy.signal import find_peaks, butter, filtfilt,spectrogram
 import mne
 import yasa
 from sklearn.decomposition import PCA
+from scipy import signal as sp_signal
+from spectrum import arburg
+from numpy.fft import rfftfreq
+import pywt
 
 def extract_time_domain_features(epoch,fs):
     """
@@ -36,105 +40,281 @@ def extract_time_domain_features(epoch,fs):
     # TODO: Students must implement remaining time-domain features:
     # Basic statistical features:
     # 4
-    features['variance'] = np.var(epoch)
-    # 5
     features['rms'] = np.sqrt(np.mean(epoch**2))
-    # 6
+    # 5
     features['min'] = np.min(epoch)
-    # 7
+    # 6
     features['max'] = np.max(epoch)
-    # 8
+    # 7
     features['range'] = np.max(epoch) - np.min(epoch)
-    # 9
+    # 8
     features['skewness'] = scipy.stats.skew(epoch)
-    # 10
+    # 9
     features['kurtosis'] = scipy.stats.kurtosis(epoch)
 
     # Signal complexity features:
-    # 11
+    # 10
     features['zero_crossings'] = np.sum(np.diff(np.sign(epoch)) != 0)
-    # 12
+    # 11
     features['hjorth_activity'] = np.var(epoch)
-    # 13
+    # 12
     features['hjorth_mobility'] = np.sqrt(np.var(np.diff(epoch)) / np.var(epoch))
-    # 14
+    # 13
     features['hjorth_complexity'] = hjorth_complexity(epoch)
+    # 14
+    features['q25'] = np.percentile(epoch, 25)
+    # 15
+    features['q75'] = np.percentile(epoch, 75)
+    # 16
+    features['iqr'] = features['q75'] - features['q25']
+
+
 
     return features
 
-def extract_frequency_domain_features(epoch, fs):
+def extract_frequency_domain_features_welch(epoch, fs):
 
-    n = len(epoch)
-    ft = fft(epoch)
-    S = np.abs(ft**2)/n 
 
+    f, S = compute_psd_welch(epoch, fs,nperseg=256)
     features={}
     
-    # 21
+    # 15
     features['spectral_entropy'] = -np.sum((S/np.sum(S)) * np.log(S/np.sum(S) + 1e-12))
+    # 16
+    features['spectral_edge_freq_95'] = spectral_edge_frequency(epoch, fs, percent=0.95)
     
-    # 26
-    features['delta_power'] = band_power(epoch, fs, (0.5, 4))
-    # 27
-    features['theta_power'] = band_power(epoch, fs, (4, 8))
-    # 28
-    features['alpha_power'] = band_power(epoch, fs, (8, 12))
-    # 29
-    features['beta_power'] = band_power(epoch, fs, (12, 30))
-    # 30
-    features['gamma_power'] = band_power(epoch, fs, (30, 40))
+    # 17
+    features['delta_power'] = band_power(f, S, (0.5, 4))
+    # 18
+    features['theta_power'] = band_power(f, S, (4, 8))
+    # 19
+    features['alpha_power'] = band_power(f, S, (8, 13))
+    # 20
+    features['beta_power'] = band_power(f, S, (13, 30))
+    # 21
+    features['gamma_power'] = band_power(f, S, (30, 50))
 
     # Absolute Band Power Ratios(as gibven in the paper "An Effective and Interpretable Sleep Stage Classification
     # Approach Using Multi-Domain Electroencephalogram and
     # Electrooculogram Features")
-    # 31
-    features['abpr_delta'] = absolute_band_power_ratio(epoch, fs, (0.5, 4))
-
-    # 32
-    features['abpr_theta'] = absolute_band_power_ratio(epoch, fs, (4, 8))
-
-    # 33
-    features['abpr_alpha'] = absolute_band_power_ratio(epoch, fs, (8, 12))
-
-    # 34    
-    features['abpr_beta'] = absolute_band_power_ratio(epoch, fs, (12, 30))
-
-    # 35
-    features['abpr_gamma'] = absolute_band_power_ratio(epoch, fs, (30, 40))
 
     # Relative Band Power Ratios
-    # 36
-    features['rbpr_delta_theta'] = relative_band_power_ratio(epoch, fs, (0.5, 4), (4, 8))
+    # 22
+    features['rbpr_delta_alpha'] = relative_band_power_ratio(f, S, (0.5, 4), (8, 13))
 
-    # 37
-    features['rbpr_theta_alpha'] = relative_band_power_ratio(epoch, fs, (4, 8), (8, 12))
+    # 23
+    features['rbpr_theta_beta'] = relative_band_power_ratio(f, S, (4, 8), (13, 30))
 
-    # 38
-    features['rbpr_alpha_beta'] = relative_band_power_ratio(epoch, fs, (8, 12), (12, 30))
+    # 24
+    # Slow fast ratio
+    features['rbpr_delta_theta_alpha_beta'] =  (band_power(f, S, (0.5, 4))+band_power(f, S, (4, 8))) / (band_power(f, S, (8, 13))+band_power(f, S, (13, 30)))
+    rel_powers = compute_relative_band_power(f, S,bands=None)
+    features.update(rel_powers)
+    return features    
 
-    # 39
-    features['rbpr_delta_theta_alpha_beta'] = relative_band_power_ratio(epoch, fs, (0.5, 8), (8, 30))
+def extract_frequency_domain_features_AR(epoch, fs, order):
+
+    f, S = compute_psd_AR(epoch, fs, order, n_freqs=256)
+    features={}
+    
+    # 15
+    features['spectral_entropy'] = -np.sum((S/np.sum(S)) * np.log(S/np.sum(S) + 1e-12))
+    # 16
+    features['spectral_edge_freq_95'] = spectral_edge_frequency(epoch, fs, percent=0.95)
+    
+    # 17
+    features['delta_power'] = band_power(f, S, (0.5, 4))
+    # 18
+    features['theta_power'] = band_power(f, S, (4, 8))
+    # 19
+    features['alpha_power'] = band_power(f, S, (8, 13))
+    # 20
+    features['beta_power'] = band_power(f, S, (13, 30))
+    # 21
+    features['gamma_power'] = band_power(f, S, (30, 50))
+
+    # Absolute Band Power Ratios(as gibven in the paper "An Effective and Interpretable Sleep Stage Classification
+    # Approach Using Multi-Domain Electroencephalogram and
+    # Electrooculogram Features")
+ 
+    # Relative Band Power Ratios
+    # 22
+    features['rbpr_delta_alpha'] = relative_band_power_ratio(f, S, (0.5, 4), (8, 13))
+
+    # 23
+    features['rbpr_theta_beta'] = relative_band_power_ratio(f, S, (4, 8), (13, 30))
+
+    # 24
+    # Slow fast ratio
+    features['rbpr_delta_theta_alpha_beta'] =  (band_power(f, S, (0.5, 4))+band_power(f, S, (4, 8))) / (band_power(f, S, (8, 13))+band_power(f, S, (13, 30)))
+    
+    rel_powers = compute_relative_band_power(f, S,bands=None)
+    features.update(rel_powers)
+    return features    
+
+def extract_frequency_domain_features_wavelet(epoch, wavelet='db4', level=5):
+    # 23 features extracted
+    coeffs = pywt.wavedec(epoch, wavelet=wavelet, level=level)
+    A = coeffs[0]       # Approximation at level L
+    D = coeffs[1:]      # Details D1..DL
+    features = {}
+
+    # Helper to compute energy and entropy
+    def energy(c):
+        return float(np.sum(c**2))
+    def entropy(c):
+        p = np.abs(c)
+        s = np.sum(p) + 1e-12
+        q = p / s
+        return float(-np.sum(q * np.log(q + 1e-12)))
+
+    for i, c in enumerate(D, start=1):
+        # total features: 15-30
+        features[f'D{i}_energy'] = energy(c)
+        features[f'D{i}_entropy'] = entropy(c)
+        features[f'D{i}_mean'] = float(np.mean(c))
+        features[f'D{i}_std'] = float(np.std(c))
+    # 31
+    features['A5_energy'] = energy(A)
+    # 32
+    features['A5_entropy'] = entropy(A)
+
+    # Aggregate EEG-band energies using mapping for fs=125
+    beta_energy   = features['D2_energy']
+    alpha_energy  = features['D3_energy']  # mixed alpha/sigma
+    sigma_energy  = features['D3_energy']  # refine with CWT if needed
+    theta_energy  = features['D4_energy']
+    delta_energy  = features['D5_energy'] + features['A5_energy']
+
+    # Ratios
+    slow = delta_energy + theta_energy
+    fast = alpha_energy + beta_energy
+    features['slow_fast_ratio'] = float(slow / (fast + 1e-12))
 
     return features
 
-    
 
-def compute_fft_spectrum(epoch, fs):
-    n = len(epoch)
-    freq = np.fft.rfftfreq(n, d=1/fs)
-    spectrum = np.abs(np.fft.rfft(epoch))**2 / n
-    return freq, spectrum
+def compute_psd_welch(signal, fs, nperseg=256):
+    """
+    Compute Power Spectral Density using Welch's method.
+    Parameters:
+    -----------
+    signal : array-like
+    Time-domain signal
+    fs : float
+    Sampling frequency in Hz (default: 256 Hz for EEG)
+    nperseg : int
+    Length of each segment for Welch's method
+    Returns:
+    --------
+    freqs : array
+    Frequency bins
+    psd : array
+    Power spectral density values
+    """
+    freqs, psd = sp_signal.welch(
+    signal,
+    fs=fs,
+    window='hann',
+    nperseg=nperseg,
+    noverlap=nperseg//2,
+    scaling='density'
+    )
+    return freqs, psd
 
-def band_power(epoch, fs, band):
-    f, Sxx = compute_fft_spectrum(epoch, fs)
+def compute_psd_AR(x, fs, order, n_freqs=256):
+    a, e, _ = arburg(x, order)
+    freqs = rfftfreq(n_freqs*2, d=1/fs) 
+    w = 2 * np.pi * freqs / fs
+    k = np.arange(1, len(a))[:, None]  # shape (p, 1)
+    Aw = 1.0 + (a[1:, None] * np.exp(-1j * w * k)).sum(axis=0)
+    psd = e / (np.abs(Aw) ** 2)
+    return freqs, psd
+
+def ar_order_select_aic_bic(x, max_order=30):
+    results = []
+    N = len(x)
+    for p in range(2, max_order + 1):
+        a, e, _ = arburg(x, p)
+        aic = N * np.log(e) + 2 * p
+        bic = N * np.log(e) + p * np.log(N)
+        results.append((p, e, aic, bic))
+
+    p_aic = min(results, key=lambda r: r[2])[0]
+    p_bic = min(results, key=lambda r: r[3])[0]
+    return p_aic, p_bic, results
+
+
+def integrate_band(freqs, psd, fmin, fmax):
+    mask = (freqs >= fmin) & (freqs <= fmax)
+    if not np.any(mask):
+        return 0.0
+    return np.trapezoid(psd[mask], freqs[mask])
+
+def band_power(f,Sxx, band):
+    # f, Sxx = compute_psd_welch(epoch, fs)
     idx = np.logical_and(f >= band[0], f <= band[1])
-    power = np.sum(Sxx[idx])
-    return power
+    band_power = np.trapezoid(Sxx[idx], f[idx])
+    return band_power
 
-def absolute_band_power_ratio(epoch, fs, band, total_band=(0.5, 40)):
-    band_power_val = band_power(epoch, fs, band)
-    total_power_val = band_power(epoch, fs, total_band)
-    return band_power_val / total_power_val
+def compute_relative_band_power(f, Sxx, bands=None):
+    """
+    Compute relative (normalized) band powers for EEG bands.
+    Args:
+        f (np.ndarray): frequency array
+        Sxx (np.ndarray): PSD values
+        bands (dict): dictionary of bands, e.g. {'delta':(0.5,4), 'theta':(4,8), ...}
+    Returns:
+        dict: relative band powers
+    """
+    if bands is None:
+        bands = {
+            'delta': (0.5, 4),
+            'theta': (4, 8),
+            'alpha': (8, 13),
+            'beta':  (13, 30),
+            'gamma': (30, 50)
+        }
+
+    # Compute absolute band powers
+    band_powers = {band: band_power(f, Sxx, rng) for band, rng in bands.items()}
+
+    # Compute total power
+    total_power = sum(band_powers.values()) + 1e-12  # avoid divide by zero
+
+    # Normalize each band
+    relative_powers = {f"{band}_relative": power / total_power
+                       for band, power in band_powers.items()}
+
+    return relative_powers
+
+
+def spectral_edge_frequency(signal, fs, percent=0.95):
+    """
+    Compute Spectral Edge Frequency (SEF).
+    Parameters:
+    -----------
+    percent : float
+    Percentage of total power (e.g., 0.95 for SEF95)
+    Returns:
+    --------
+    sef : float
+    Frequency below which 'percent' of power is contained
+    """
+    freqs, psd = compute_psd_welch(signal, fs=fs)
+    # Cumulative sum of power
+    cumulative_power = np.cumsum(psd)
+    total_power = cumulative_power[-1]
+    # Find frequency where cumulative power reaches threshold
+    threshold = percent * total_power
+    idx = np.where(cumulative_power >= threshold)[0]
+    if len(idx) > 0:
+     sef = freqs[idx[0]]
+    else:
+     sef = freqs[-1]
+    
+    return sef
+
 
 def relative_band_power_ratio(epoch, fs, band_num, band_den):
     power_num = band_power(epoch, fs, band_num)
@@ -190,31 +370,51 @@ def extract_multi_channel_features(multi_channel_data, config,fs,debug=False):
         for ch in range(multi_channel_data['eeg'].shape[1]):
             eeg_signal = multi_channel_data['eeg'][epoch_idx, ch, :]
             eeg_time_domain_features = extract_time_domain_features(eeg_signal,fs)
-            eeg_frequency_domain_features = extract_frequency_domain_features(eeg_signal,fs)
+            if config.METHOD == 'ar':
+                # p_aic, p_bic, results = ar_order_select_aic_bic(eeg_signal, max_order=30)
+                # print("Best order by AIC:", p_aic)
+                # print("Best order by BIC:", p_bic)
+                eeg_frequency_domain_features = extract_frequency_domain_features_AR(eeg_signal,fs,order=8)
+
+            # elif config.METHOD == 'welch':
+            #     eeg_frequency_domain_features = extract_frequency_domain_features_welch(eeg_signal,fs)
+
+            # elif config.METHOD == 'wavelet':
+            #     eeg_frequency_domain_features = extract_frequency_domain_features_wavelet(eeg_signal, wavelet='db4', level=5)
+
+           
+            eeg_frequency_domain_features_welch = extract_frequency_domain_features_welch(eeg_signal, fs)
+            eeg_frequency_domain_features_wavelet = extract_frequency_domain_features_wavelet(eeg_signal, wavelet='db4', level=5)
+
+
+            eeg_frequency_domain_features = {}
+            eeg_frequency_domain_features.update(eeg_frequency_domain_features_welch)
+            eeg_frequency_domain_features.update(eeg_frequency_domain_features_wavelet)
+
             epoch_features.extend(list(eeg_time_domain_features.values()))
             epoch_features.extend(list(eeg_frequency_domain_features.values()))
 
-        if config.CURRENT_ITERATION ==2:
+        # if config.CURRENT_ITERATION ==2:
 
-            left_signal = multi_channel_data['eog'][epoch_idx, 0, :]
-            right_signal = multi_channel_data['eog'][epoch_idx, 1, :]
+        #     left_signal = multi_channel_data['eog'][epoch_idx, 0, :]
+        #     right_signal = multi_channel_data['eog'][epoch_idx, 1, :]
 
-            left_features, left_blinks = extract_eog_features(left_signal, fs)
-            right_features, right_blinks = extract_eog_features(right_signal, fs)
-            cross_features = extract_eog_cross_channel_features(left_signal, right_signal, fs)
+        #     left_features, left_blinks = extract_eog_features(left_signal, fs)
+        #     right_features, right_blinks = extract_eog_features(right_signal, fs)
+        #     cross_features = extract_eog_cross_channel_features(left_signal, right_signal, fs)
 
-            # Combine all features
-            epoch_features.extend(list(left_features.values()))
-            epoch_features.extend(list(right_features.values()))
-            epoch_features.extend(list(cross_features.values()))
+        #     # Combine all features
+        #     epoch_features.extend(list(left_features.values()))
+        #     epoch_features.extend(list(right_features.values()))
+        #     epoch_features.extend(list(cross_features.values()))
 
     
-            if debug:
-                visualize_eog_peaks(left_signal, fs, blink_peaks=left_blinks, title=f"Left EOG - Epoch {epoch_idx}")
-                visualize_eog_peaks(right_signal, fs, blink_peaks=right_blinks, title=f"Right EOG - Epoch {epoch_idx}")
-                # diff_signal = left_signal - right_signal
-                # visualize_eog_peaks(diff_signal, fs, saccade_peaks=cross_features['saccade_peak_indices'],
-                #                     title=f"Horizontal EOG (L-R) - Epoch {epoch_idx}")
+        #     if debug:
+        #         visualize_eog_peaks(left_signal, fs, blink_peaks=left_blinks, title=f"Left EOG - Epoch {epoch_idx}")
+        #         visualize_eog_peaks(right_signal, fs, blink_peaks=right_blinks, title=f"Right EOG - Epoch {epoch_idx}")
+        #         # diff_signal = left_signal - right_signal
+        #         # visualize_eog_peaks(diff_signal, fs, saccade_peaks=cross_features['saccade_peak_indices'],
+        #         #                     title=f"Horizontal EOG (L-R) - Epoch {epoch_idx}")
 
         if config.CURRENT_ITERATION >= 3:
             # Add EOG features (2 channels)
