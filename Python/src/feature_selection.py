@@ -1,5 +1,7 @@
 import numpy as np
-
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.feature_selection import SelectKBest, mutual_info_classif
 def select_features(features, labels, config):
     """
     STUDENT IMPLEMENTATION AREA: Select most relevant features.
@@ -33,10 +35,17 @@ def select_features(features, labels, config):
         print("⚠️  WARNING: No features to select from!")
         return features
 
-    if config.CURRENT_ITERATION <= 2:
+    if config.CURRENT_ITERATION == 2:
         # Early iterations: Use all available features
+        selector = VarianceThreshold(threshold=0.01)  
+        X_var = selector.fit_transform(features)
+        corr_matrix = np.corrcoef(X_var, rowvar=False)
+        selector = SelectKBest(score_func=f_classif, k=50)
+        X_corr, kept_features = drop_correlated_features(X_var, threshold=0.95)
+        X_selected = selector.fit_transform(X_corr, labels)
         print("Early iteration - using all available features")
-        selected_features = features
+
+        selected_features = X_selected
 
     elif config.CURRENT_ITERATION == 3:
         # TODO: Students should implement feature selection here
@@ -61,3 +70,16 @@ def select_features(features, labels, config):
 
     print(f"Selected features shape: {selected_features.shape}")
     return selected_features
+
+def drop_correlated_features(X, threshold=0.95):
+    corr_matrix = np.corrcoef(X, rowvar=False)
+    n_features = corr_matrix.shape[0]
+    to_drop = set()
+
+    for i in range(n_features):
+        for j in range(i+1, n_features):
+            if abs(corr_matrix[i, j]) > threshold:
+                to_drop.add(j)
+
+    keep_idx = [i for i in range(n_features) if i not in to_drop]
+    return X[:, keep_idx], keep_idx
