@@ -155,7 +155,7 @@ def main():
     # 3. Feature Extraction
     print("\n=== STEP 3: FEATURE EXTRACTION ===")
     features = None
-    cache_filename_features = f"features_iter{config.CURRENT_ITERATION}.joblib"
+    cache_filename_features = f"features_iter{config.METHOD}.joblib"
     if config.USE_CACHE:
         features = load_cache(cache_filename_features, config.CACHE_DIR)
         if features is not None:
@@ -166,14 +166,18 @@ def main():
         print(f"Extracted features shape: {features.shape}")
         if features.shape[1] == 0:
             print("WARNING: No features extracted! Students must implement feature extraction.")
+
+        else:
+            print(f"Extracted features shape: {features.shape}")
+            
         if config.USE_CACHE:
             save_cache(features, cache_filename_features, config.CACHE_DIR)
             print("Saved features to cache")
 
 #     # 4. Feature Selection
-#     print("\n=== STEP 4: FEATURE SELECTION ===")
-#     selected_features = select_features(features, labels, config)
-#     print(f"Selected features shape: {selected_features.shape}")
+    print("\n=== STEP 4: FEATURE SELECTION ===")
+    selected_features = select_features(features, combined_labels, config)
+    # print(f"Selected features shape: {selected_features.shape}")
 
 #     # 5. Classification
 #     print("\n=== STEP 5: CLASSIFICATION ===")
