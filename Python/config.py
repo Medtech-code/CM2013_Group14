@@ -2,7 +2,7 @@
 
 # Set the current iteration of the project (1-4). 
 # This controls which parts of the pipeline are active.
-CURRENT_ITERATION = 2
+CURRENT_ITERATION = 1
 
 # Set to True to use cached data for preprocessing and feature extraction.
 USE_CACHE = True  # Temporarily disabled for testing with real data
@@ -34,6 +34,7 @@ if CURRENT_ITERATION == 1:
     # Iteration 1: Basic pipeline with k-NN
     CLASSIFIER_TYPE = 'knn'
     KNN_N_NEIGHBORS = 5
+    METHOD = CURRENT_ITERATION#for cache name, useful later
 elif CURRENT_ITERATION == 2:
     # Iteration 2: Enhanced EEG processing with SVM
     CLASSIFIER_TYPE = 'svm'

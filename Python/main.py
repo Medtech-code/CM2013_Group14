@@ -176,47 +176,50 @@ def main():
 
 #     # 4. Feature Selection
     print("\n=== STEP 4: FEATURE SELECTION ===")
-    selected_features = select_features(features, combined_labels, config)
+    selected_features = select_features(features, labels, config)
     # print(f"Selected features shape: {selected_features.shape}")
 
 #     # 5. Classification
-#     print("\n=== STEP 5: CLASSIFICATION ===")
-#     if selected_features.shape[1] > 0:
-#         model = train_classifier(selected_features, labels, config)
-#         print(f"Trained {config.CLASSIFIER_TYPE} classifier")
-#     else:
-#         print("⚠️  WARNING: Cannot train classifier - no features available!")
-#         print("Students must implement feature extraction first.")
-#         model = None
+    print("\n=== STEP 5: CLASSIFICATION ===")
+    if selected_features.shape[1] > 0:
+        model = train_classifier(selected_features, combined_labels, config)
+        print(f"Trained {config.CLASSIFIER_TYPE} classifier")
+        if config.USE_CACHE:
+            cache_filename_model = f"model_iter{config.CURRENT_ITERATION}.joblib"
+            save_cache(model,cache_filename_model, config.CACHE_DIR)
+    else:
+        print("⚠️  WARNING: Cannot train classifier - no features available!")
+        print("Students must implement feature extraction first.")
+        model = None
 
-#     # 6. Visualization
-#     print("\n=== STEP 6: VISUALIZATION ===")
-#     if model is not None:
-#         visualize_results(model, selected_features, labels, config)
-#     else:
-#         print("Skipping visualization - no trained model")
+    # 6. Visualization
+    print("\n=== STEP 6: VISUALIZATION ===")
+    if model is not None:
+        visualize_results(model, selected_features, combined_labels, config)
+    else:
+        print("Skipping visualization - no trained model")
 
 #     # # 7. Report Generation
-#     # print("\n=== STEP 7: PROCESSING LOG & REPORT GENERATION ===")
+    print("\n=== STEP 7: PROCESSING LOG & REPORT GENERATION ===")
 
-#     # # Restore the original stdout
-#     # #sys.stdout = original_stdout
+    # Restore the original stdout
+    #sys.stdout = original_stdout
 
-#     # # Get the captured output from the buffer
-#     # #processing_log = stdout_buffer.getvalue()   
+    # Get the captured output from the buffer
+    #processing_log = stdout_buffer.getvalue()   
      
-#     # if model is not None:
-#     #     #generate_report(model, selected_features, labels, config, processing_log)
-#     #     generate_report(model, selected_features, labels, config, "")
+    if model is not None:
+        #generate_report(model, selected_features, labels, config, processing_log)
+        generate_report(model, selected_features, combined_labels, config, "")
 
-#     # else:
-#     #     print("Skipping report - no trained model")
+    else:
+        print("Skipping report - no trained model")
 
-#     # print("\n" + "="*50)
-#     # print("PIPELINE FINISHED")
-#     # if model is None:
-#     #     print("⚠️  Students need to implement missing components!")
-#     # print("="*50)
+    print("\n" + "="*50)
+    print("PIPELINE FINISHED")
+    if model is None:
+        print("⚠️  Students need to implement missing components!")
+    print("="*50)
 
 if __name__ == "__main__":
     main()
