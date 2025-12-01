@@ -34,8 +34,11 @@ def select_features(features, labels, config):
     if features.shape[1] == 0:
         print("⚠️  WARNING: No features to select from!")
         return features
-
-    if config.CURRENT_ITERATION == 2:
+    
+    if config.CURRENT_ITERATION == 1:
+        selected_features = features
+        
+    elif config.CURRENT_ITERATION == 2:
         # Early iterations: Use all available features
         selector = VarianceThreshold(threshold=0.01)  
         X_var = selector.fit_transform(features)
