@@ -154,54 +154,60 @@ def main():
 
     # 3. Feature Extraction
     print("\n=== STEP 3: FEATURE EXTRACTION ===")
-    features = None
+    # features = None
     cache_filename_features = f"features_iter{config.CURRENT_ITERATION}.joblib"
+
+    # Try loading from cache
     if config.USE_CACHE:
         features = load_cache(cache_filename_features, config.CACHE_DIR)
         if features is not None:
             print("Loaded features from cache")
             print(f"Features shape from cache: {features.shape}")
 
+    # Extract if cache miss
     if features is None:
-
         if config.CURRENT_ITERATION == 2:
-         features = extract_features([preprocessed_data['eeg'][:,0,:],preprocessed_data['eog'][:,0,:]], config,channel_info)
-         print(f"Extracted features shape: {features.shape}")
-
+            eeg = preprocessed_data['eeg'][:,0,:]
+            eog = preprocessed_data['eog'][:,0,:]
+            features = extract_features([eeg, eog], config, channel_info)
         else:
-            features = extract_features(preprocessed_data, config,channel_info)
-            print(f"Extracted features shape: {features.shape}")
+            features = extract_features(preprocessed_data, config, channel_info)
 
-        if features.shape[1] == 0:
+        if features is None or features.shape[1] == 0:
             print("WARNING: No features extracted! Students must implement feature extraction.")
-
         else:
             print(f"Extracted features shape: {features.shape}")
-            
+
         if config.USE_CACHE:
             save_cache(features, cache_filename_features, config.CACHE_DIR)
             print("Saved features to cache")
 
-    # 4. Feature Selection
+    # === STEP 4: FEATURE SELECTION ===
     print("\n=== STEP 4: FEATURE SELECTION ===")
-    if config.CURRENT_ITERATION == 1:
-        selected_features = features  # No selection in iteration 1
-        print(f"Selected features shape: {selected_features.shape}")
 
-    else:
-        features = None
-        cache_filename_selected_features = f"features_selected_iter{config.CURRENT_ITERATION}.joblib"
-        if config.USE_CACHE:
-            features = load_cache(cache_filename_selected_features, config.CACHE_DIR)
-            if features is not None:
-                print("Loaded selected features from cache")
-       
-        if features is None:
+    cache_filename = f"features_selected_iter{config.CURRENT_ITERATION}.joblib"
+    selected_features = None
+
+    # Try loading from cache
+    if config.USE_CACHE:
+        selected_features = load_cache(cache_filename, config.CACHE_DIR)
+        if selected_features is not None:
+            print("Loaded selected features from cache")
+            print(f"Selected features shape: {selected_features.shape}")
+
+    # If cache miss, perform selection
+    if selected_features is None:
+        if config.CURRENT_ITERATION == 1:
+            # No selection in iteration 1
+            selected_features = features
+        else:
             selected_features = select_features(features, combined_labels, config)
             if config.USE_CACHE:
-                save_cache(selected_features, cache_filename_selected_features, config.CACHE_DIR)
+                save_cache(selected_features, cache_filename, config.CACHE_DIR)
                 print("Saved selected features to cache")
-    print(f"Selected features shape: {selected_features.shape}")
+
+        print(f"Selected features shape: {selected_features.shape}")
+
 
     # 5. Classification
     print("\n=== STEP 5: CLASSIFICATION ===")
