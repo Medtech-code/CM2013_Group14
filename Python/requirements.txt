@@ -7,3 +7,4 @@ mne
 yasa
 spectrum
 PyWavelets
+imbalanced-learn

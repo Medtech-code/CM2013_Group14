@@ -176,17 +176,21 @@ def main():
 
 #     # 4. Feature Selection
     print("\n=== STEP 4: FEATURE SELECTION ===")
-    selected_features = select_features(features, labels, config)
+    selected_features = select_features(features, combined_labels, config)
     # print(f"Selected features shape: {selected_features.shape}")
 
 #     # 5. Classification
     print("\n=== STEP 5: CLASSIFICATION ===")
     if selected_features.shape[1] > 0:
-        model = train_classifier(selected_features, combined_labels, config)
-        print(f"Trained {config.CLASSIFIER_TYPE} classifier")
+        cache_filename_model = f"model_iter{config.CURRENT_ITERATION}.joblib"
         if config.USE_CACHE:
-            cache_filename_model = f"model_iter{config.CURRENT_ITERATION}.joblib"
-            save_cache(model,cache_filename_model, config.CACHE_DIR)
+            model = load_cache(cache_filename_model, config.CACHE_DIR)
+            if model is not None:
+                print("Loaded model from cache")
+            else:
+                model = train_classifier(selected_features, combined_labels, all_record_ids, config)
+                print(f"Trained {config.CLASSIFIER_TYPE} classifier")
+                save_cache(model,cache_filename_model, config.CACHE_DIR)
     else:
         print("⚠️  WARNING: Cannot train classifier - no features available!")
         print("Students must implement feature extraction first.")
@@ -195,7 +199,8 @@ def main():
     # 6. Visualization
     print("\n=== STEP 6: VISUALIZATION ===")
     if model is not None:
-        visualize_results(model, selected_features, combined_labels, config)
+        #visualize_results(model, selected_features, combined_labels, config)
+        print()
     else:
         print("Skipping visualization - no trained model")
 
