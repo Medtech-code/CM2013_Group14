@@ -13,7 +13,10 @@ import os
 import sys
 import io
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 
 def main():
  
@@ -79,9 +82,11 @@ def main():
     else:
         eeg_all = [mc['eeg'] for mc in multi_channel_list]
         eog_all = [mc['eog'] for mc in multi_channel_list]
+        emg_all = [mc['emg'] for mc in multi_channel_list] 
         combined_epochs = {
             'eeg': np.concatenate(eeg_all, axis=0),
-            'eog': np.concatenate(eog_all, axis=0)
+            'eog': np.concatenate(eog_all, axis=0),
+            'emg': np.concatenate(emg_all, axis=0)  
         }
         combined_labels = np.concatenate(all_labels, axis=0)
 
@@ -109,6 +114,8 @@ def main():
     if isinstance(combined_epochs, dict):
         print("\nEEG shape:", combined_epochs['eeg'].shape)
         print("EOG shape:", combined_epochs['eog'].shape)
+        if 'emg' in combined_epochs:
+            print("EMG shape:", combined_epochs['emg'].shape)
         num_epochs = combined_epochs['eeg'].shape[0]
     else:
         print("\nEpochs shape:", combined_epochs.shape)
