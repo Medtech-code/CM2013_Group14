@@ -176,9 +176,9 @@ def main():
         if config.CURRENT_ITERATION == 2:
             eeg = preprocessed_data['eeg'][:,0,:]
             eog = preprocessed_data['eog'][:,0,:]
-            features = extract_features([eeg, eog], config, channel_info)
+            features, feature_names = extract_features([eeg, eog], config, channel_info)
         else:
-            features = extract_features(preprocessed_data, config, channel_info)
+            features,feature_names = extract_features(preprocessed_data, config, channel_info)
 
         if features is None or features.shape[1] == 0:
             print("WARNING: No features extracted! Students must implement feature extraction.")
@@ -208,7 +208,7 @@ def main():
             # No selection in iteration 1
             selected_features = features
         else:
-            selected_features = select_features(features, combined_labels, config)
+            selected_features = select_features(features, combined_labels,feature_names,config)
             if config.USE_CACHE:
                 save_cache(selected_features, cache_filename, config.CACHE_DIR)
                 print("Saved selected features to cache")
@@ -244,7 +244,7 @@ def main():
      
     if model is not None:
         #generate_report(model, selected_features, labels, config, processing_log)
-        generate_report(model, selected_features, combined_labels, config, "")
+        generate_report(model, selected_features, combined_labels, config, "report.txt")
 
     else:
         print("Skipping report - no trained model")
