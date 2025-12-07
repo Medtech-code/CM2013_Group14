@@ -27,7 +27,6 @@ def process_holdout_file(file_path, model, config):
     record_id = Path(file_path).stem
     print(f"\n  Processing edf file {record_id}...")
     
-    
     # 1. Load Hold-out Data
     try:
         holdout_eeg_data, record_info, channel_info = load_holdout_data(file_path)
@@ -40,9 +39,13 @@ def process_holdout_file(file_path, model, config):
     cache_filename_preprocess_holdout = f"preprocessed_holdout_data_iter{config.CURRENT_ITERATION}.joblib"
     if config.USE_CACHE:
         preprocessed_holdout_data = load_cache(cache_filename_preprocess_holdout, config.CACHE_DIR)
-    
+
     if preprocessed_holdout_data is None:
-        preprocessed_holdout_data = preprocess(holdout_eeg_data, config, channel_info) # TODO: for multichannel data, param: channel_info isnt None
+        try:
+            preprocessed_holdout_data = preprocess(holdout_eeg_data, config, channel_info)
+        except Exception as e:
+            print(f"error! Failed preprocessing for {record_id}: {e}")
+            return None        
         if config.USE_CACHE:
             save_cache(preprocessed_holdout_data, cache_filename_preprocess_holdout, config.CACHE_DIR)
             
@@ -53,7 +56,11 @@ def process_holdout_file(file_path, model, config):
         holdout_features = load_cache(cache_filename_features_holdout, config.CACHE_DIR)
 
     if holdout_features is None:
-        holdout_features = extract_features(preprocessed_holdout_data, config, channel_info)
+        try:
+            holdout_features = extract_features(preprocessed_holdout_data, config, channel_info)
+        except Exception as e:
+            print(f"error! Failed feature extraction for {record_id}: {e}")
+            return None        
         if config.USE_CACHE:
             save_cache(holdout_features, cache_filename_features_holdout, config.CACHE_DIR)
 
@@ -81,7 +88,9 @@ def run_inference():
     #           -For iterating through files.
     holdout_dir_path = Path(config.HOLDOUT_DIR)
     holdout_files = sorted(holdout_dir_path.glob("*.edf"))
-
+    if holdout_files is None:
+        print("ERROR: Holdout_files failed to load")
+        return
     predictions = []
     epoch_numbers = []
     record_numbers = []

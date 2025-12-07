@@ -114,7 +114,6 @@ def train_classifier(features, labels, all_record_ids, config):
 
     # Assuming you tracked record_ids when loading data
     # record_ids is array like ['R1', 'R1', ..., 'R2', 'R2', ..., 'R10', 'R10', ...]
-    
     # Create LOSO cross-validation split
     logo = LeaveOneGroupOut()
 
@@ -152,6 +151,19 @@ def train_classifier(features, labels, all_record_ids, config):
         })
 
         print(f"  {test_subject}: Accuracy={accuracy:.1%}, Kappa={kappa:.3f}, F1-macro={f1_macro:.3f}")
+        
+        print(f"        ------------SLEEP METRICS------------")
+        # Compare ground truth vs predictions
+        true_metrics = calculate_sleep_metrics(y_test)
+        pred_metrics = calculate_sleep_metrics(y_pred)
+
+        # Report differences
+        for metric_name in true_metrics:
+            true_val = true_metrics[metric_name]
+            pred_val = pred_metrics[metric_name]
+            error = abs(pred_val - true_val)
+            print(f"{metric_name}: True={true_val:.1f}, Pred={pred_val:.1f}, Error={error:.1f}")
+            
 
     # Report mean ± std across all 10 subjects
     mean_acc = np.mean([r['accuracy'] for r in loso_results])
@@ -254,3 +266,32 @@ def print_performance_metrics(y_true, y_pred):
     print("- Sleep stage imbalance is natural (more N2, less N1/REM)")
     print("- Consider Cohen's kappa for chance-corrected agreement")
     print("- Clinical focus: High sensitivity for REM and N3 stages")
+    
+def calculate_sleep_metrics(labels, epoch_duration=30):
+    """
+    Calculate sleep architecture metrics from epoch labels.
+
+    Args:
+        labels: array of sleep stage labels (0=Wake, 1=N1, 2=N2, 3=N3, 4=REM)
+        epoch_duration: seconds per epoch (default 30)
+
+    Returns:
+        metrics: dict of sleep architecture values
+    """
+    
+    print("-----------------------LABELS DEBUG PRINT----------")
+    
+    for l in labels:
+        print(l)
+    # Students must implement based on definitions above
+    metrics = {}
+
+    # 1. Find sleep onset (first non-wake epoch)
+    
+    # 2. Calculate SOL, REM latency, TST, WASO
+    
+    # 3. Calculate stage percentages
+    
+    # 4. Count awakenings
+
+    return metrics
