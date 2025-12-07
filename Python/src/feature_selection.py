@@ -51,8 +51,8 @@ def select_features(features, labels,feature_names, config):
         selector = SelectKBest(score_func=f_classif, k=50)
         X_corr, kept_features = drop_correlated_features(X_var, threshold=0.95)
         X_selected = selector.fit_transform(X_corr, labels)
-        print("Iteration 2 Selected features shape:", selected_features.shape)
 
+        print("Iteration 2 Selected features shape:", selected_features.shape)
         selected_features = X_selected
 
     elif config.CURRENT_ITERATION == 3:
@@ -63,8 +63,8 @@ def select_features(features, labels,feature_names, config):
         selector = SelectKBest(score_func=f_classif, k=50)
         X_corr, kept_features = drop_correlated_features(X_var, threshold=0.95)
         X_selected = selector.fit_transform(X_corr, labels)
-        print("Iteration 3 Selected features shape:", selected_features.shape)
 
+        print("Iteration 3 Selected features shape:", selected_features.shape)
         selected_features = X_selected
 
     
