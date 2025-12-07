@@ -148,6 +148,7 @@ def load_holdout_data(edf_file_path, epoch_length=30):
         tuple: (multi_channel_data, record_info) where:
             - multi_channel_data (dict): Same structure as load_training_data
             - record_info (dict): Metadata including record_id, n_epochs, channels
+            - channel_info (dict): Channel information (same across recordings)         #added
 
     Example:
         >>> data, info = load_holdout_data('H1.edf')
@@ -181,6 +182,10 @@ def load_holdout_data(edf_file_path, epoch_length=30):
 
     # EEG channels - match specific patterns, exclude already identified channels
     eeg_candidates = []
+    
+    #added to load holdout data for run_inference script
+    channel_info = {'epoch_length': epoch_length}
+    
     for ch in channel_names:
         ch_upper = ch.upper()
         # Match EEG with specific patterns, but exclude SaO2, SpO2, etc.
@@ -208,12 +213,16 @@ def load_holdout_data(edf_file_path, epoch_length=30):
         eeg_data, eeg_fs = _extract_epochs(eeg_raw, epoch_length, n_epochs)
         multi_channel_data['eeg'] = eeg_data
         sampling_rates['eeg'] = eeg_fs
+        channel_info['eeg_names'] = eeg_channels
+        channel_info['eeg_fs'] = eeg_fs
         print(f"  EEG: {eeg_data.shape[1]} channels, {eeg_data.shape[2]} samples/epoch, {eeg_fs} Hz")
 
     if eog_channels:
         eog_raw = raw.copy().pick_channels(eog_channels)
         eog_data, eog_fs = _extract_epochs(eog_raw, epoch_length, n_epochs)
         multi_channel_data['eog'] = eog_data
+        channel_info['eog_names'] = eog_channels
+        channel_info['eog_fs'] = eog_fs
         sampling_rates['eog'] = eog_fs
         print(f"  EOG: {eog_data.shape[1]} channels, {eog_data.shape[2]} samples/epoch, {eog_fs} Hz")
 
@@ -221,6 +230,8 @@ def load_holdout_data(edf_file_path, epoch_length=30):
         emg_raw = raw.copy().pick_channels(emg_channels)
         emg_data, emg_fs = _extract_epochs(emg_raw, epoch_length, n_epochs)
         multi_channel_data['emg'] = emg_data
+        channel_info['emg_names'] = emg_channels
+        channel_info['emg_fs'] = emg_fs
         sampling_rates['emg'] = emg_fs
         print(f"  EMG: {emg_data.shape[1]} channels, {emg_data.shape[2]} samples/epoch, {emg_fs} Hz")
 
@@ -235,7 +246,7 @@ def load_holdout_data(edf_file_path, epoch_length=30):
 
     print(f"Loaded {n_epochs} epochs ({n_epochs*epoch_length/3600:.2f} hours)")
 
-    return multi_channel_data, record_info
+    return multi_channel_data, record_info, channel_info
 
 
 def _extract_epochs(raw, epoch_length, n_epochs):
@@ -393,7 +404,6 @@ def load_all_training_data(training_dir, epoch_length=30):
     _print_label_distribution(combined_labels)
 
     return combined_data, combined_labels, combined_record_ids, channel_info
-
 
 if __name__ == '__main__':
     # Example usage

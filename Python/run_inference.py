@@ -30,7 +30,7 @@ def process_holdout_file(file_path, model, config):
     
     # 1. Load Hold-out Data
     try:
-        holdout_eeg_data, record_info = load_holdout_data(file_path)
+        holdout_eeg_data, record_info, channel_info = load_holdout_data(file_path)
     except Exception as e:
         print(f"error! Failed to load {record_id}: {e}")
         return
@@ -42,7 +42,7 @@ def process_holdout_file(file_path, model, config):
         preprocessed_holdout_data = load_cache(cache_filename_preprocess_holdout, config.CACHE_DIR)
     
     if preprocessed_holdout_data is None:
-        preprocessed_holdout_data = preprocess(holdout_eeg_data, config, record_info) # TODO: for multichannel data, param: channel_info isnt None
+        preprocessed_holdout_data = preprocess(holdout_eeg_data, config, channel_info) # TODO: for multichannel data, param: channel_info isnt None
         if config.USE_CACHE:
             save_cache(preprocessed_holdout_data, cache_filename_preprocess_holdout, config.CACHE_DIR)
             
@@ -53,7 +53,7 @@ def process_holdout_file(file_path, model, config):
         holdout_features = load_cache(cache_filename_features_holdout, config.CACHE_DIR)
 
     if holdout_features is None:
-        holdout_features = extract_features(preprocessed_holdout_data, config)
+        holdout_features = extract_features(preprocessed_holdout_data, config, channel_info)
         if config.USE_CACHE:
             save_cache(holdout_features, cache_filename_features_holdout, config.CACHE_DIR)
 
@@ -67,8 +67,6 @@ def process_holdout_file(file_path, model, config):
         return
         
         
-
-
 def run_inference():
     print(f"--- Sleep Scoring Inference - Iteration {config.CURRENT_ITERATION} ---")
 
