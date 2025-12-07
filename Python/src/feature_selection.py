@@ -2,7 +2,11 @@ import numpy as np
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.feature_selection import SelectKBest, mutual_info_classif
-def select_features(features, labels, config):
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+import pandas as pd
+def select_features(features, labels,feature_names, config):
     """
     STUDENT IMPLEMENTATION AREA: Select most relevant features.
 
@@ -37,6 +41,7 @@ def select_features(features, labels, config):
     
     if config.CURRENT_ITERATION == 1:
         selected_features = features
+        print("Iteration 1 Selected features shape (no selection):", selected_features.shape)
         
     elif config.CURRENT_ITERATION == 2:
         # Early iterations: Use all available features
@@ -46,32 +51,75 @@ def select_features(features, labels, config):
         selector = SelectKBest(score_func=f_classif, k=50)
         X_corr, kept_features = drop_correlated_features(X_var, threshold=0.95)
         X_selected = selector.fit_transform(X_corr, labels)
-        print("Early iteration - using all available features")
+        print("Iteration 2 Selected features shape:", selected_features.shape)
 
         selected_features = X_selected
 
     elif config.CURRENT_ITERATION == 3:
-        # TODO: Students should implement feature selection here
-        # Target: Select ~30 best features from larger set
-        print("TODO: Students should implement feature selection for iteration 3")
-        print("Suggested: Use SelectKBest with f_classif to select ~30 features")
-        print("Example code:")
-        print("  from sklearn.feature_selection import SelectKBest, f_classif")
-        print("  selector = SelectKBest(f_classif, k=30)")
-        print("  selected_features = selector.fit_transform(features, labels)")
 
-        # Placeholder - students must replace:
-        selected_features = features  # No selection implemented yet
+        selector = VarianceThreshold(threshold=0.01)  
+        X_var = selector.fit_transform(features)
+        corr_matrix = np.corrcoef(X_var, rowvar=False)
+        selector = SelectKBest(score_func=f_classif, k=50)
+        X_corr, kept_features = drop_correlated_features(X_var, threshold=0.95)
+        X_selected = selector.fit_transform(X_corr, labels)
+        print("Iteration 3 Selected features shape:", selected_features.shape)
 
+        selected_features = X_selected
+
+    
     elif config.CURRENT_ITERATION == 4:
-        # TODO: Students should implement advanced feature selection
-        print("TODO: Students should implement advanced feature selection for iteration 4")
-        print("Suggested: Use more sophisticated methods like RFE or feature importance")
 
-        # Placeholder - students must replace:
-        selected_features = features  # No selection implemented yet
+        rf = RandomForestClassifier(
+            n_estimators=300,
+            max_depth=None,
+            class_weight='balanced',
+            random_state=42,
+            n_jobs=-1
+        )
 
-    print(f"Selected features shape: {selected_features.shape}")
+        X_train, X_val, y_train, y_val = train_test_split(
+            features, labels,
+            test_size=0.2,
+            random_state=42,
+            stratify=labels
+        )
+
+        rf.fit(X_train, y_train)
+        importances = rf.feature_importances_
+        indices = np.argsort(importances)[::-1]  # sorted biggest → smallest
+        print("\n===== TOP 20 MOST IMPORTANT FEATURES =====")
+
+        for i in range(20):
+            idx = indices[i]
+            print(f"{i+1:2d}. {feature_names[idx]:45s} : {importances[idx]:.5f}")
+        n_keep = 50   # change if needed
+        selected_indices = indices[:n_keep]
+        selected_feature_names = [feature_names[i] for i in selected_indices]
+
+        print(f"\nSelected top {n_keep} features stored in selected_feature_names")
+        df_selected = pd.DataFrame(features[:, selected_indices],
+                                columns=selected_feature_names)
+        df_selected.to_csv("selected_features_iter4.csv", index=False)
+        print("\nSaved: selected_features_iter4.csv")
+
+
+        plt.figure(figsize=(14, 6))
+        plt.bar(range(len(importances)), importances[indices])
+        plt.xlabel("Features (sorted)")
+        plt.ylabel("Importance")
+        plt.title("Random Forest Feature Importance")
+        plt.axvline(x=n_keep, linestyle='--', color='red', label=f"Top {n_keep}")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig("feature_importance_iter4.png", dpi=150)
+        plt.show()
+
+        print("Saved: feature_importance_iter4.png")
+        selected_features = features[:, selected_indices]  
+        print("Iteration 4 Selected features shape:", selected_features.shape)
+
+
     return selected_features
 
 def drop_correlated_features(X, threshold=0.95):
