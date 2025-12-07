@@ -244,7 +244,7 @@ def main():
      
     if model is not None:
         #generate_report(model, selected_features, labels, config, processing_log)
-        generate_report(model, selected_features, combined_labels, config, "report.txt")
+        generate_report(model, selected_features, combined_labels, config, txt_filename=None)
 
     else:
         print("Skipping report - no trained model")
