@@ -191,7 +191,6 @@ def main():
 
     # === STEP 4: FEATURE SELECTION ===
     print("\n=== STEP 4: FEATURE SELECTION ===")
-    selected_features = select_features(features, combined_labels, config)
     # print(f"Selected features shape: {selected_features.shape}")
 
     cache_filename = f"features_selected_iter{config.CURRENT_ITERATION}.joblib"
