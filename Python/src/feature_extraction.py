@@ -112,45 +112,6 @@ def extract_frequency_domain_features_welch(epoch, fs):
     features.update(rel_powers)
     return features    
 
-def extract_frequency_domain_features_AR(epoch, fs, order):
-
-    f, S = compute_psd_AR(epoch, fs, order, n_freqs=256)
-    features={}
-    
-    # 15
-    features['spectral_entropy'] = -np.sum((S/np.sum(S)) * np.log(S/np.sum(S) + 1e-12))
-    # 16
-    features['spectral_edge_freq_95'] = spectral_edge_frequency(epoch, fs, percent=0.95)
-    
-    # 17
-    features['delta_power'] = band_power(f, S, (0.5, 4))
-    # 18
-    features['theta_power'] = band_power(f, S, (4, 8))
-    # 19
-    features['alpha_power'] = band_power(f, S, (8, 13))
-    # 20
-    features['beta_power'] = band_power(f, S, (13, 30))
-    # 21
-    features['gamma_power'] = band_power(f, S, (30, 50))
-
-    # Absolute Band Power Ratios(as gibven in the paper "An Effective and Interpretable Sleep Stage Classification
-    # Approach Using Multi-Domain Electroencephalogram and
-    # Electrooculogram Features")
- 
-    # Relative Band Power Ratios
-    # 22
-    features['rbpr_delta_alpha'] = relative_band_power_ratio(f, S, (0.5, 4), (8, 13))
-
-    # 23
-    features['rbpr_theta_beta'] = relative_band_power_ratio(f, S, (4, 8), (13, 30))
-
-    # 24
-    # Slow fast ratio
-    features['rbpr_delta_theta_alpha_beta'] =  (band_power(f, S, (0.5, 4))+band_power(f, S, (4, 8))) / (band_power(f, S, (8, 13))+band_power(f, S, (13, 30)))
-    
-    rel_powers = compute_relative_band_power(f, S,bands=None)
-    features.update(rel_powers)
-    return features    
 
 def extract_frequency_domain_features_wavelet(epoch, wavelet='db4', level=5):
     # 23 features extracted
@@ -342,105 +303,86 @@ def extract_features(data, config,channel_info):
         np.ndarray: A 2D array of features (n_epochs, n_features).
     """
     print(f"Extracting features for iteration {config.CURRENT_ITERATION}...")
-    fs=channel_info['eeg_fs']
+    fs_eeg=channel_info['eeg_fs']
+    fs_eog=channel_info['eog_fs']
+    fs_emg=channel_info['emg_fs']
     # Detect if we have multi-channel data structure
     is_multi_channel = isinstance(data, dict) and 'eeg' in data
 
     if is_multi_channel:
         print("Processing multi-channel data (EEG + EOG )")
-        return extract_multi_channel_features(data, config,fs,debug=False)
+        return extract_multi_channel_features(data, config,fs_eeg,fs_eog,fs_emg,debug=False)
     else:
         print("Processing single-channel data (backward compatibility)")
-        return extract_single_channel_features(data,config,fs)
+        return extract_single_channel_features(data,config,fs_eeg,fs_eog,fs_emg)
 
 
-def extract_multi_channel_features(multi_channel_data, config,fs,debug=False):
-    """
-    Extract features from multi-channel data: 2 EEG + 2 EOG + 1 EMG channels.
+def extract_multi_channel_features(multi_channel_data, config,fs_eeg,fs_eog,fs_emg, debug=False):
 
-    Students should expand this significantly!
-    """
     n_epochs = multi_channel_data['eeg'].shape[0]
     all_features = []
+
+
+    time_names   = list(extract_time_domain_features(multi_channel_data['eeg'][0, 0, :], fs_eeg).keys())
+    welch_names  = list(extract_frequency_domain_features_welch(multi_channel_data['eeg'][0, 0, :], fs_eeg).keys())
+    wavelet_names = list(extract_frequency_domain_features_wavelet(multi_channel_data['eeg'][0, 0, :], wavelet='db4', level=5).keys())
+    eog_names    = list(extract_eog_features(multi_channel_data['eog'][0, 0, :],fs_eog).keys())
+    emg_names    = list(extract_emg_features(multi_channel_data['emg'][0, 0, :],fs_eog).keys())
+
+    # Build feature names EXACTLY matching values extracted later
+    all_feature_names = []
+
+    # EEG: repeat features per EEG channel
+    for ch in range(multi_channel_data['eeg'].shape[1]):
+        all_feature_names += [f"EEG_ch{ch}_{k}" for k in time_names]
+        all_feature_names += [f"EEG_ch{ch}_{k}" for k in welch_names]
+        all_feature_names += [f"EEG_ch{ch}_{k}" for k in wavelet_names]
+
+    # EOG and EMG added ONCE per channel (correct)
+    if config.CURRENT_ITERATION >= 3:
+        for ch in range(multi_channel_data['eog'].shape[1]):
+            all_feature_names += [f"EOG_ch{ch}_{k}" for k in eog_names]
+
+        all_feature_names += [f"EMG_{k}" for k in emg_names]
 
     for epoch_idx in range(n_epochs):
         epoch_features = []
 
-        # EEG features (2 channels)
+        # EEG features
         for ch in range(multi_channel_data['eeg'].shape[1]):
             eeg_signal = multi_channel_data['eeg'][epoch_idx, ch, :]
-            eeg_time_domain_features = extract_time_domain_features(eeg_signal,fs)
-            if config.METHOD == 'ar':
-                # p_aic, p_bic, results = ar_order_select_aic_bic(eeg_signal, max_order=30)
-                # print("Best order by AIC:", p_aic)
-                # print("Best order by BIC:", p_bic)
-                eeg_frequency_domain_features = extract_frequency_domain_features_AR(eeg_signal,fs,order=8)
 
-            # elif config.METHOD == 'welch':
-            #     eeg_frequency_domain_features = extract_frequency_domain_features_welch(eeg_signal,fs)
+            epoch_features += list(extract_time_domain_features(eeg_signal, fs_eeg).values())
+            epoch_features += list(extract_frequency_domain_features_welch(eeg_signal, fs_eeg).values())
+            epoch_features += list(extract_frequency_domain_features_wavelet(eeg_signal, wavelet='db4', level=5).values())
 
-            # elif config.METHOD == 'wavelet':
-            #     eeg_frequency_domain_features = extract_frequency_domain_features_wavelet(eeg_signal, wavelet='db4', level=5)
-
-           
-            eeg_frequency_domain_features_welch = extract_frequency_domain_features_welch(eeg_signal, fs)
-            eeg_frequency_domain_features_wavelet = extract_frequency_domain_features_wavelet(eeg_signal, wavelet='db4', level=5)
-
-
-            eeg_frequency_domain_features = {}
-            eeg_frequency_domain_features.update(eeg_frequency_domain_features_welch)
-            eeg_frequency_domain_features.update(eeg_frequency_domain_features_wavelet)
-
-            epoch_features.extend(list(eeg_time_domain_features.values()))
-            epoch_features.extend(list(eeg_frequency_domain_features.values()))
-
-        # if config.CURRENT_ITERATION ==2:
-
-        #     left_signal = multi_channel_data['eog'][epoch_idx, 0, :]
-        #     right_signal = multi_channel_data['eog'][epoch_idx, 1, :]
-
-        #     left_features, left_blinks = extract_eog_features(left_signal, fs)
-        #     right_features, right_blinks = extract_eog_features(right_signal, fs)
-        #     cross_features = extract_eog_cross_channel_features(left_signal, right_signal, fs)
-
-        #     # Combine all features
-        #     epoch_features.extend(list(left_features.values()))
-        #     epoch_features.extend(list(right_features.values()))
-        #     epoch_features.extend(list(cross_features.values()))
-
-    
-        #     if debug:
-        #         visualize_eog_peaks(left_signal, fs, blink_peaks=left_blinks, title=f"Left EOG - Epoch {epoch_idx}")
-        #         visualize_eog_peaks(right_signal, fs, blink_peaks=right_blinks, title=f"Right EOG - Epoch {epoch_idx}")
-        #         # diff_signal = left_signal - right_signal
-        #         # visualize_eog_peaks(diff_signal, fs, saccade_peaks=cross_features['saccade_peak_indices'],
-        #         #                     title=f"Horizontal EOG (L-R) - Epoch {epoch_idx}")
-
+        # EOG + EMG
         if config.CURRENT_ITERATION >= 3:
-            # Add EOG features (2 channels)
             for ch in range(multi_channel_data['eog'].shape[1]):
                 eog_signal = multi_channel_data['eog'][epoch_idx, ch, :]
-                eog_features = extract_eog_features(eog_signal)
-                epoch_features.extend(list(eog_features.values()))
+                epoch_features += list(extract_eog_features(eog_signal,fs_eog).values())
 
-            # Add EMG features (1 channel)
             emg_signal = multi_channel_data['emg'][epoch_idx, 0, :]
-            emg_features = extract_emg_features(emg_signal)
-            epoch_features.extend(list(emg_features.values()))
+            epoch_features += list(extract_emg_features(emg_signal,fs_emg).values())
 
         all_features.append(epoch_features)
+
 
     features = np.array(all_features)
     scaler = RobustScaler()
     features = scaler.fit_transform(features)
+
+    df_features = pd.DataFrame(features, columns=all_feature_names)
+    df_features.to_csv(f"features_iter{config.CURRENT_ITERATION}.csv", index=False)
+
+    # PCA plot
     pca = PCA(n_components=2)
     proj = pca.fit_transform(features)
-    plt.figure(figsize=(8,6))
-    plt.scatter(proj[:,0], proj[:,1], cmap='viridis', alpha=0.6)
+    plt.figure(figsize=(8, 6))
+    plt.scatter(proj[:, 0], proj[:, 1], cmap='viridis', alpha=0.6)
     plt.xlabel("PC1")
-    plt.ylabel("PC2") 
+    plt.ylabel("PC2")
     plt.title("PCA of Features")
-    plt.colorbar(label="Class")
     plt.show()
 
     
@@ -453,10 +395,10 @@ def extract_multi_channel_features(multi_channel_data, config,fs,debug=False):
         print(f"Multi-channel features extracted: {features.shape[1]} total")
         print("(2 EEG + 2 EOG + 1 EMG channels)")
 
-    return features
+    return features, all_feature_names
 
 
-def extract_single_channel_features(data, config,fs):
+def extract_single_channel_features(data, config,fs_eeg,fs_eog,fs_emg):
     """
     Backward compatibility for single-channel data.
     """
@@ -465,10 +407,10 @@ def extract_single_channel_features(data, config,fs):
         # CURRENT: Only 3 features implemented - students must add 13 more!
         all_features = []
         for epoch_index,epoch in enumerate(data):
-            features = extract_time_domain_features(epoch,fs)
+            features = extract_time_domain_features(epoch,fs_eeg)
             # visualize_features(data,epoch_index)  # Visualize features for debugging
             all_features.append(list(features.values()))
-        feature_names = list(extract_time_domain_features(data[0],fs).keys())   
+        feature_names = list(extract_time_domain_features(data[0],fs_eeg).keys())   
         df_features = pd.DataFrame(all_features, columns=feature_names)
         scaler = RobustScaler()
         normalized_array = scaler.fit_transform(df_features)
@@ -479,15 +421,56 @@ def extract_single_channel_features(data, config,fs):
         visualize_feature_trends(features, feature_names)
 
 
-        print(f"WARNING: Only {features.shape[1]} features extracted, target is 16 for iteration 1")
-        print("Students must implement the remaining time-domain features!")
-
     elif config.CURRENT_ITERATION == 2:
-        # TODO: Students must implement frequency-domain features
-        print("TODO: Students must implement frequency-domain feature extraction")
-        print("Target: ~31 features (time + frequency domain)")
-        n_epochs = data.shape[0] if len(data.shape) > 1 else 1
-        features = np.zeros((n_epochs, 0))  # Empty features - students must implement
+        all_features = []
+        feature_names = None
+
+
+        num_epochs = len(data[0])  
+
+        for i in range(num_epochs):
+            eeg_epoch = data[0][i]
+            eog_epoch = data[1][i]
+
+            # Extract EEG features
+            eeg_time = extract_time_domain_features(eeg_epoch, fs_eeg)
+            eeg_welch = extract_frequency_domain_features_welch(eeg_epoch, fs_eeg)
+            eeg_wavelet = extract_frequency_domain_features_wavelet(eeg_epoch, wavelet='db4', level=5)
+
+            # Extract EOG features
+            eog = extract_eog_features(eog_epoch, fs_eog)
+
+            # Combine all features
+            epoch_features = {
+                **eeg_time,
+                **eeg_welch,
+                **eeg_wavelet,
+                **eog
+            }
+
+            # Set feature names ONCE from the FIRST epoch
+            if feature_names is None:
+                feature_names = list(epoch_features.keys())
+                expected_len = len(feature_names)
+            else:
+                if len(epoch_features) != expected_len:
+                    raise ValueError(
+                        f"Feature count mismatch in epoch {i}: "
+                        f"expected {expected_len}, got {len(epoch_features)}\n"
+                        f"Missing: {set(feature_names) - set(epoch_features.keys())}\n"
+                        f"Extra:   {set(epoch_features.keys()) - set(feature_names)}"
+                    )
+
+            all_features.append(list(epoch_features.values()))
+
+        df_features = pd.DataFrame(all_features, columns=feature_names)
+
+        scaler = RobustScaler()
+        normalized_array = scaler.fit_transform(df_features)
+        df_normalized = pd.DataFrame(normalized_array, columns=feature_names)
+        df_normalized.to_csv(f"features_iter{config.CURRENT_ITERATION}.csv", index=False)
+        all_features = df_normalized.values.tolist()
+        features = np.array(all_features)   
 
     elif config.CURRENT_ITERATION >= 3:
         # TODO: Students must implement multi-signal features
@@ -498,51 +481,12 @@ def extract_single_channel_features(data, config,fs):
     else:
         raise ValueError(f"Invalid iteration: {config.CURRENT_ITERATION}")
 
-    return features
+    return features, feature_names
 
 
-def extract_eog_cross_channel_features(left_channel, right_channel, fs=100):
-    """
-    Extract cross-channel EOG features (horizontal saccades, correlation)
-    using left and right EOG channels.
-
-    Args:
-        left_channel (np.ndarray): Left EOG signal
-        right_channel (np.ndarray): Right EOG signal
-        fs (int): Sampling frequency
-
-    Returns:
-        dict: Features including cross-channel correlation and horizontal saccade count
-    """
-    left = np.array(left_channel)
-    right = np.array(right_channel)
-
-    # 1. Left-right correlation
-    # 30
-    lr_corr = np.corrcoef(left, right)[0, 1]
-
-    # # 2. Horizontal saccades (difference signal)
-    # diff_sig = left - right
-    # saccade_threshold = np.mean(np.abs(diff_sig)) + 2*np.std(diff_sig)
-    # saccade_peaks, _ = find_peaks(np.abs(diff_sig),
-    #                               height=saccade_threshold,
-    #                               distance=int(0.05*fs))
-    
-    # if len(saccade_peaks) == 0:
-    #     horizontal_saccades = 0
-    # else:
-    #     horizontal_saccades = len(saccade_peaks)
-    
-    features = {
-        'lr_correlation': lr_corr,
-        # 'horizontal_saccades':horizontal_saccades,
-        # 'saccade_peak_indices': saccade_peaks
-    }
-
-    return features
 
 
-def extract_eog_features(eog_signal, fs=50):
+def extract_eog_features(eog_signal, fs):
     """
     Extract EOG-specific features for eye movement detection.
 
@@ -551,10 +495,13 @@ def extract_eog_features(eog_signal, fs=50):
     """
 
     sig = np.array(eog_signal)
+    
     # 35-37
     features = {
-        'eog_mean': np.mean(sig),
-        'eog_std': np.std(sig),
+        # 1
+        'eog_peak_amplitude': np.max(np.abs(eog_signal)),
+        # 2
+        'eog_var': np.var(sig),
         'eog_range': np.max(sig) - np.min(sig),
     }
 
@@ -566,33 +513,35 @@ def extract_eog_features(eog_signal, fs=50):
                                 height=blink_threshold,
                                 distance=int(0.1 * fs))  
 
-    blink_rate = len(blink_peaks) / (len(sig) / fs) 
+    # 3
     features['blink_count'] = len(blink_peaks)
-    features['blink_rate_hz'] = blink_rate
+    # 4
+    features['rem_score'] = len(blink_peaks) / len(eog_signal)
+
 
     # 2. RAPID EYE MOVEMENT (REM) FEATURES (0.5–5 Hz band)
     rem_band = bandpass(sig, 0.5, 5.0, fs)
     rem_energy = np.sum(rem_band ** 2)
     rem_zero_cross = np.sum(rem_band[:-1] * rem_band[1:] < 0)
-    # 31
+    # 5
     features['rem_energy'] = rem_energy
-    # 32
+    # 6
     features['rem_zero_crossings'] = rem_zero_cross
 
     # 3. SLOW EYE MOVEMENTS (SEM) FEATURES (< 0.5 Hz)
     sem_band = lowpass(sig, 0.5, fs)
     sem_variance = np.var(sem_band)
     sem_slope = np.mean(np.abs(np.diff(sem_band)))
-    # 33
+    # 7
     features['sem_variance'] = sem_variance
-    # 34
+    # 8
     features['sem_slope'] = sem_slope
 
-    return features,blink_peaks
+    return features
 
 
 
-def extract_emg_features(emg_signal):
+def extract_emg_features(emg_signal,fs):
     """
     STUDENT TODO: Extract EMG-specific features for muscle tone detection.
 
@@ -611,6 +560,19 @@ def extract_emg_features(emg_signal):
     # - High-frequency power (muscle activity indicator)
     # - Spectral edge frequency
     # - Muscle tone quantification
+
+    # Signal power
+    features['power'] = np.mean(emg_signal**2)
+    
+    # Variance
+    features['variance'] = np.var(emg_signal)
+    
+    # High-frequency (20-40 Hz) power ratio
+    f, Pxx = compute_psd_welch(emg_signal, fs=fs, nperseg=fs*2)  # PSD estimate
+    band_power = np.trapezoid(Pxx[(f>=20) & (f<=40)], f[(f>=20) & (f<=40)])
+    total_power = np.trapezoid(Pxx, f)
+    features['hf_ratio'] = band_power / total_power if total_power > 0 else 0
+    
 
     return features
 
@@ -861,6 +823,13 @@ def visualize_eog_peaks(
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+
+def highpass_filter(signal, fs, cutoff=0.5, order=4):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    return filtfilt(b, a, signal)
 
 
 

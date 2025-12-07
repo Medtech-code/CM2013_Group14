@@ -1,7 +1,7 @@
 from scipy.signal import butter, lfilter, iirnotch, filtfilt
 import matplotlib.pyplot as plt
 from scipy.signal import welch
-
+from scipy.signal import welch
 import numpy as np
 
 def bandpass_filter(data, low_cutoff, high_cutoff, fs):
@@ -199,12 +199,43 @@ def preprocess_multi_channel(multi_channel_data, config, channel_info):
         emg_data = multi_channel_data['emg']
         emg_fs = channel_info['emg_fs']   # Actual sampling rate: 125 Hz (TODO: Get from channel_info)
         preprocessed_emg = np.zeros_like(emg_data)
+        all_powers = []
 
+        #loop to calculate the threshold
         for epoch in range(emg_data.shape[0]):
             signal = emg_data[epoch, 0, :]
             # EMG needs higher frequency content preserved (muscle activity)
-            filtered_signal = bandpass_filter(signal, 70, emg_fs)  # Higher cutoff for EMG
-            preprocessed_emg[epoch, 0, :] = filtered_signal
+            filtered_emg = bandpass_filter(signal, 20, 60, emg_fs)  # Higher cutoff for EMG
+            preprocessed_emg[epoch, 0, :] = filtered_emg
+            f_emg, Pxx_emg = welch(filtered_emg, fs=emg_fs)
+            band_mask = (f_emg >= 20) & (f_emg <= 40)
+            power_20_40 = np.trapezoid(Pxx_emg[band_mask], f_emg[band_mask])
+            all_powers.append(power_20_40)
+            if epoch < 5:
+                print("epoch", epoch, "power_20_40 =", power_20_40)
+            # low-pass más fuerte al EEG de ese epoch
+        threshold = np.percentile(all_powers, 60)  # por ejemplo
+        print("EMG power threshold:", threshold)
+
+        #loop to filter in case teh threshold applys
+        for epoch in range(emg_data.shape[0]):
+            signal = emg_data[epoch, 0, :]
+            filtered_emg = bandpass_filter(signal, 20, 60, emg_fs)
+            preprocessed_emg[epoch, 0, :] = filtered_emg
+
+            f_emg, Pxx_emg = welch(filtered_emg, fs=emg_fs)
+            band_mask = (f_emg >= 20) & (f_emg <= 40)
+            power_20_40 = np.trapezoid(Pxx_emg[band_mask], f_emg[band_mask])
+
+            if power_20_40 > threshold:
+                # you apply a higher low-pass to the same epoch of the EEG
+                for ch in range(preprocessed_eeg.shape[1]):
+                    eeg_epoch_ch = preprocessed_eeg[epoch, ch, :]
+                    eeg_strong_lp = bandpass_filter(eeg_epoch_ch,
+                                                    config.HIGH_PASS_FILTER_FREQ,
+                                                    20,
+                                                    eeg_fs)
+                    preprocessed_eeg[epoch, ch, :] = eeg_strong_lp
 
         preprocessed_data['emg'] = preprocessed_emg
         print("Multi-channel preprocessing applied to EEG + EOG + EMG")
