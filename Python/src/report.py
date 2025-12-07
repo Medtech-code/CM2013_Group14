@@ -1,38 +1,85 @@
-def generate_report(model, features, labels, config, processing_log):
+import numpy as np
+import pandas as pd
+from sklearn.metrics import (
+    accuracy_score, 
+    cohen_kappa_score,
+    precision_score, 
+    recall_score, 
+    f1_score,
+    confusion_matrix,
+    matthews_corrcoef
+)
+import seaborn as sns
+from sklearn.metrics import roc_auc_score
+import matplotlib.pyplot as plt
+
+def generate_report(model, selected_features, combined_labels, config, txt_filename=None):
     """
-    Generates a report summarizing the results.
-
-    For the jumpstart, this is a placeholder.
-
-    Args:
-        model (object): The trained model.
-        features (np.ndarray): The input features.
-        labels (np.ndarray): The corresponding labels.
-        config (module): The configuration module.
+    Generate evaluation report and save it to a text file.
+    
+    Inputs:
+    - model: trained classifier
+    - selected_features: features used for prediction
+    - combined_labels: true labels
+    - config: optional config object (for class names)
+    - txt_filename: output text file
     """
-    print("Generating report...")
-    # TODO: Implement a function to generate a comprehensive report 
-    # (e.g., as a text file or PDF) that includes:
-    # - Performance metrics (accuracy, kappa, F1-score)
-    # - Confusion matrix
-    # - Details about the model and features used
-    report_content = f"""
-    {processing_log}
+    iteration = getattr(config, "CURRENT_ITERATION", "unknown")
+    
+    # Default filename if not provided
+    if txt_filename is None:
+        txt_filename = f"report_iteration_{iteration}.txt"
+
+    y_pred = model.predict(selected_features)
+    y_true = combined_labels
+
+    # Overall metrics
+    acc = accuracy_score(y_true, y_pred)
+    kappa = cohen_kappa_score(y_true, y_pred)
+    f1_macro = f1_score(y_true, y_pred, average='macro')
+    f1_micro = f1_score(y_true, y_pred, average='micro')
+    f1_weighted = f1_score(y_true, y_pred, average='weighted')
+    mcc = matthews_corrcoef(y_true, y_pred)
+
+    # Per-class metrics
+    precision = precision_score(y_true, y_pred, average=None, zero_division=0)
+    recall = recall_score(y_true, y_pred, average=None, zero_division=0)
+    f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0)
 
 
-    # Sleep Scoring Report - Iteration {config.CURRENT_ITERATION}
+    if hasattr(config, "SLEEP_CLASSES"):
+        classes = config.SLEEP_CLASSES
+    else:
+        classes = np.unique(y_true)
 
-    ## Model
-    {type(model).__name__}
+    report_lines = []
+    report_lines.append("===== OVERALL METRICS =====")
+    report_lines.append(f"Accuracy: {acc:.4f}")
+    report_lines.append(f"Cohen's Kappa: {kappa:.4f}")
+    report_lines.append(f"Macro F1: {f1_macro:.4f}")
+    report_lines.append(f"Micro F1: {f1_micro:.4f}")
+    report_lines.append(f"Weighted F1: {f1_weighted:.4f}")
+    report_lines.append(f"Matthews Correlation Coefficient: {mcc:.4f}")
+    report_lines.append("\n===== PER-CLASS METRICS =====")
+    for i, cls in enumerate(classes):
+        report_lines.append(f"{cls}: Precision={precision[i]:.4f}, Recall={recall[i]:.4f}, F1={f1_per_class[i]:.4f}")
 
-    ## Performance
-    Accuracy: ...
-    Kappa: ...
-    F1-score: ...
+    # Confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    report_lines.append("\n===== CONFUSION MATRIX =====")
+    report_lines.append(str(cm))
 
-    ## Notes
-    This is a dummy report. Implement full report generation.
-    """
-    with open("report.txt", "w") as f:
-        f.write(report_content)
-    print("Report saved to report.txt")
+    # Save to text file
+    with open(txt_filename, "w") as f:
+        f.write("\n".join(report_lines))
+
+    print(f"Report saved to {txt_filename}")
+
+    # Optional: show confusion matrix plot
+    plt.figure(figsize=(8,6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=classes, yticklabels=classes)
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title("Confusion Matrix")
+    plt.show()
