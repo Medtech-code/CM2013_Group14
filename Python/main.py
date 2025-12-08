@@ -159,61 +159,76 @@ def main():
             print("Saved preprocessed data to cache")
 
 
-    # 3. Feature Extraction
     print("\n=== STEP 3: FEATURE EXTRACTION ===")
-    # features = None
     cache_filename_features = f"features_iter{config.CURRENT_ITERATION}.joblib"
 
-    # Try loading from cache
+    # Always initialize
+    features = None
+    feature_names = None
+
+    # Try loading (features, feature_names) from cache
     if config.USE_CACHE:
-        features = load_cache(cache_filename_features, config.CACHE_DIR)
-        if features is not None:
-            print("Loaded features from cache")
+        cached = load_cache(cache_filename_features, config.CACHE_DIR)
+        if cached is not None:
+            features, feature_names = cached
+            print("Loaded features + feature_names from cache")
             print(f"Features shape from cache: {features.shape}")
 
-    # Extract if cache miss
+    # If not loaded, extract new features
     if features is None:
         if config.CURRENT_ITERATION == 2:
-            eeg = preprocessed_data['eeg'][:,0,:]
-            eog = preprocessed_data['eog'][:,0,:]
+            eeg = preprocessed_data['eeg'][:, 0, :]
+            eog = preprocessed_data['eog'][:, 0, :]
             features, feature_names = extract_features([eeg, eog], config, channel_info)
         else:
-            features,feature_names = extract_features(preprocessed_data, config, channel_info)
+            features, feature_names = extract_features(preprocessed_data, config, channel_info)
 
         if features is None or features.shape[1] == 0:
             print("WARNING: No features extracted! Students must implement feature extraction.")
         else:
             print(f"Extracted features shape: {features.shape}")
 
+        # Save (features, feature_names)
         if config.USE_CACHE:
-            save_cache(features, cache_filename_features, config.CACHE_DIR)
-            print("Saved features to cache")
+            save_cache((features, feature_names), cache_filename_features, config.CACHE_DIR)
+            print("Saved features + feature_names to cache")
+
 
     # === STEP 4: FEATURE SELECTION ===
     print("\n=== STEP 4: FEATURE SELECTION ===")
 
     cache_filename = f"features_selected_iter{config.CURRENT_ITERATION}.joblib"
+    indices_filename = f"selected_indices_iter{config.CURRENT_ITERATION}.npy"
     selected_features = None
 
-    # Try loading from cache
     if config.USE_CACHE:
-        selected_features = load_cache(cache_filename, config.CACHE_DIR)
-        if selected_features is not None:
+        cached = load_cache(cache_filename, config.CACHE_DIR)
+        if cached is not None:
+            selected_features = cached
             print("Loaded selected features from cache")
             print(f"Selected features shape: {selected_features.shape}")
 
-    # If cache miss, perform selection
     if selected_features is None:
+
         if config.CURRENT_ITERATION == 1:
             # No selection in iteration 1
             selected_features = features
+            selected_indices = np.arange(features.shape[1])
+            print("Iteration 1: no selection")
+            print(f"Selected features shape: {selected_features.shape}")
+
         else:
-            selected_features = select_features(features, combined_labels,feature_names,config)
+
+            selected_features, selected_indices = select_features(
+                features, feature_names, config, labels=combined_labels, return_indices=True
+            )
+
             if config.USE_CACHE:
                 save_cache(selected_features, cache_filename, config.CACHE_DIR)
-                print("Saved selected features to cache")
+                np.save(os.path.join(config.CACHE_DIR, indices_filename), selected_indices)
+                print(f"Saved selected features and indices to cache: {cache_filename}, {indices_filename}")
 
-        print(f"Selected features shape: {selected_features.shape}")
+            print(f"Selected features shape: {selected_features.shape}")
 
 
     # 5. Classification
