@@ -280,18 +280,90 @@ def calculate_sleep_metrics(labels, epoch_duration=30):
     """
     
     print("-----------------------LABELS DEBUG PRINT----------")
-    
+    ctr_SOL, ctr_REM, ctr_TST, ctr_TIB, waso_count, awakenings = 0, 0, 0, 0, 0, 0
+    stage_counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+    prev_label = None
+    found_sleep_onset, found_REM = False, False
     for l in labels:
-        print(l)
+        ctr_TIB += 1
+        
+        # Count stages
+        stage_counts[l] += 1
+
+        #print(l, end=',')  #print all stage labels
+        if found_sleep_onset is False:
+            if l == 0:
+                ctr_SOL += 1
+            else: # found first sleep epoch
+                found_sleep_onset = True
+        
+        if found_sleep_onset and found_REM is not True:
+            if l == 4 :
+                found_REM = True
+            elif l != 0:
+                ctr_REM += 1
+        
+        if found_sleep_onset and l == 0:
+            waso_count += 1
+            
+        if l != 0:
+            ctr_TST += 1
+        
+        if ctr_TIB > 1:
+            if l == 0 and prev_label != 0:
+                awakenings += 1
+        prev_label = l # Update for the next epoch chec
+            
+    print()
     # Students must implement based on definitions above
     metrics = {}
 
     # 1. Find sleep onset (first non-wake epoch)
+    sleep_onset = (epoch_duration * ctr_SOL) /60
+    print(f"Sleep onset: {sleep_onset} min        normal 10-20min")
     
-    # 2. Calculate SOL, REM latency, TST, WASO
+    REM_latency = (epoch_duration * ctr_REM) /60
+    print(f"REM latency: {REM_latency} min      normal 70-120min")
     
-    # 3. Calculate stage percentages
+    total_sleep_time = (epoch_duration * ctr_TST) /60
+    total_sleep_time_h= total_sleep_time / 60
+    print(f"Total sleep time: {total_sleep_time_h} h      normal 6-8h")
+
+    ctr_TIB = len(labels)
+    time_in_bed = (epoch_duration * ctr_TIB) /60
+    sleep_efficiency = (total_sleep_time  / time_in_bed) *100
+    print(f"Sleep efficiency: {sleep_efficiency}%        normal >85%")
     
-    # 4. Count awakenings
+    # WASO (Wake After Sleep Onset)    
+    WASO = (epoch_duration * waso_count) / 60  # minutes
+        
+    total_epochs = len(labels)
+    stage_percentages = {
+        'Wake': (stage_counts[0] / total_epochs) * 100,
+        'N1': (stage_counts[1] / total_epochs) * 100,
+        'N2': (stage_counts[2] / total_epochs) * 100,
+        'N3': (stage_counts[3] / total_epochs) * 100,
+        'REM': (stage_counts[4] / total_epochs) * 100
+    }
+    
+    metrics = {
+        'sleep_onset_latency': float(sleep_onset),  # minutes
+        'REM_latency': float(REM_latency),  # minutes
+        'total_sleep_time': float(total_sleep_time_h),  # hours
+        'time_in_bed': float(time_in_bed),  # hours
+        'sleep_efficiency': float(sleep_efficiency),  # percentage
+        'WASO': float(WASO),  # minutes
+        'awakenings': int(awakenings),
+        'Wake_count': int(stage_counts[0]),
+        'N1_count': int(stage_counts[1]),
+        'N2_count': int(stage_counts[2]),
+        'N3_count': int(stage_counts[3]),
+        'REM_count': int(stage_counts[4]),
+        'Wake_percentage': float(stage_percentages['Wake']),
+        'N1_percentage': float(stage_percentages['N1']),
+        'N2_percentage': float(stage_percentages['N2']),
+        'N3_percentage': float(stage_percentages['N3']),
+        'REM_percentage': float(stage_percentages['REM'])
+    }
 
     return metrics
