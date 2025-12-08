@@ -3,11 +3,14 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_score, confusion_matrix
 from sklearn.metrics import precision_score, recall_score, f1_score
 import pandas as pd
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import LeaveOneGroupOut
 
-def train_classifier(features, labels, config):
+
+def train_classifier(features, labels, all_record_ids, config):
     """
     STUDENT IMPLEMENTATION AREA: Train classifier based on iteration.
 
@@ -22,6 +25,7 @@ def train_classifier(features, labels, config):
     Args:
         features (np.ndarray): The input features.
         labels (np.ndarray): The corresponding labels.
+        all_record_ids (array): Record id array, e.g. ['R1', 'R1', ..., 'R2', 'R2', ..., 'R10', 'R10', ...]
         config (module): The configuration module.
 
     Returns:
@@ -54,9 +58,9 @@ def train_classifier(features, labels, config):
     # TODO: Students should address class imbalance in sleep data:
     # - Sleep stages are not equally distributed
     # - Consider SMOTE, class weights, or other techniques
-    #from imblearn.over_sampling import SMOTE
-    #smote = SMOTE(random_state=42)
-    #X_train, y_train = smote.fit_resample(X_train, y_train)
+    
+    smote = SMOTE(random_state=42)
+    X_train, y_train = smote.fit_resample(X_train, y_train)
 
     # Select classifier based on iteration (using config parameters)
     if config.CURRENT_ITERATION == 1:
@@ -108,6 +112,75 @@ def train_classifier(features, labels, config):
     # - Feature importance analysis
     print("\nTODO: Students should add Cohen's kappa and ROC-AUC metrics")
 
+    # Assuming you tracked record_ids when loading data
+    # record_ids is array like ['R1', 'R1', ..., 'R2', 'R2', ..., 'R10', 'R10', ...]
+    # Create LOSO cross-validation split
+    logo = LeaveOneGroupOut()
+
+    loso_results = []
+
+    for fold_idx, (train_idx, test_idx) in enumerate(logo.split(features, labels, groups=all_record_ids)):
+        X_train, X_test = features[train_idx], features[test_idx]
+        y_train, y_test = labels[train_idx], labels[test_idx]
+
+        all_record_ids = np.array(all_record_ids)
+
+        # Which subject is held out in this fold?   
+        test_subject = np.unique(all_record_ids[test_idx])[0]
+        print(f"Fold {fold_idx+1}/10: Training on 9 subjects, testing on {test_subject}")
+
+        # Train classifier on 9 subjects
+        model.fit(X_train, y_train)
+
+        # Predict on held-out subject
+        y_pred = model.predict(X_test)
+
+        # Calculate metrics for this subject
+        accuracy = accuracy_score(y_test, y_pred)
+        kappa = cohen_kappa_score(y_test, y_pred)
+
+        # Per-class F1 scores
+        f1_per_class = f1_score(y_test, y_pred, average=None)
+        f1_macro = f1_score(y_test, y_pred, average='macro')
+
+        loso_results.append({
+            'subject': test_subject,
+            'accuracy': accuracy,
+            'kappa': kappa,
+            'f1_macro': f1_macro
+        })
+
+        print(f"  {test_subject}: Accuracy={accuracy:.1%}, Kappa={kappa:.3f}, F1-macro={f1_macro:.3f}")
+        
+        print(f"        ------------SLEEP METRICS------------")
+        # Compare ground truth vs predictions
+        true_metrics = calculate_sleep_metrics(y_test)
+        pred_metrics = calculate_sleep_metrics(y_pred)
+
+        # Report differences
+        for metric_name in true_metrics:
+            true_val = true_metrics[metric_name]
+            pred_val = pred_metrics[metric_name]
+            error = abs(pred_val - true_val)
+            print(f"{metric_name}: True={true_val:.1f}, Pred={pred_val:.1f}, Error={error:.1f}")
+            
+
+    # Report mean ± std across all 10 subjects
+    mean_acc = np.mean([r['accuracy'] for r in loso_results])
+    std_acc = np.std([r['accuracy'] for r in loso_results])
+    mean_kappa = np.mean([r['kappa'] for r in loso_results])
+    std_kappa = np.std([r['kappa'] for r in loso_results])
+
+    print("\n" + "="*60)
+    print(f"LOSO Cross-Validation Results (10 subjects):")
+    print(f"  Accuracy = {mean_acc:.1%} ± {std_acc:.1%}")
+    print(f"  Kappa    = {mean_kappa:.3f} ± {std_kappa:.3f}")
+    print("="*60)
+
+    # Show per-subject variability
+    print("\nPer-Subject Performance:")
+    for r in sorted(loso_results, key=lambda x: x['accuracy'], reverse=True):
+        print(f"  {r['subject']}: {r['accuracy']:.1%} (kappa={r['kappa']:.3f})")
     return model
 
 
@@ -193,3 +266,32 @@ def print_performance_metrics(y_true, y_pred):
     print("- Sleep stage imbalance is natural (more N2, less N1/REM)")
     print("- Consider Cohen's kappa for chance-corrected agreement")
     print("- Clinical focus: High sensitivity for REM and N3 stages")
+    
+def calculate_sleep_metrics(labels, epoch_duration=30):
+    """
+    Calculate sleep architecture metrics from epoch labels.
+
+    Args:
+        labels: array of sleep stage labels (0=Wake, 1=N1, 2=N2, 3=N3, 4=REM)
+        epoch_duration: seconds per epoch (default 30)
+
+    Returns:
+        metrics: dict of sleep architecture values
+    """
+    
+    print("-----------------------LABELS DEBUG PRINT----------")
+    
+    for l in labels:
+        print(l)
+    # Students must implement based on definitions above
+    metrics = {}
+
+    # 1. Find sleep onset (first non-wake epoch)
+    
+    # 2. Calculate SOL, REM latency, TST, WASO
+    
+    # 3. Calculate stage percentages
+    
+    # 4. Count awakenings
+
+    return metrics
