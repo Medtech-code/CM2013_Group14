@@ -24,15 +24,24 @@ def select_features(features, feature_names, config, labels=None, return_indices
         selected_indices = np.arange(features.shape[1])
 
     elif config.CURRENT_ITERATION in [2, 3]:
-        # Variance threshold + drop correlated features
+        # Step 1: Variance threshold
         selector = VarianceThreshold(threshold=0.01)
         X_var = selector.fit_transform(features)
+        
+        # Step 2: Drop highly correlated features
         X_corr, kept_features = drop_correlated_features(X_var, threshold=0.95)
-        selected_features = X_corr
-        selected_indices = kept_features
-        selected_feature_names = [feature_names[i] for i in kept_features]
-
-        print(f"Iteration {config.CURRENT_ITERATION} Selected features shape:", selected_features.shape)
+        
+        # Step 3: Select top 50 features based on variance
+        feature_variances = X_corr.var(axis=0)
+        if len(feature_variances) > 50:
+            top_indices = np.argsort(feature_variances)[::-1][:50]  # indices of top 50
+            selected_features = X_corr[:, top_indices]
+            selected_indices = [kept_features[i] for i in top_indices]
+        else:
+            selected_features = X_corr
+            selected_indices = kept_features
+        
+        selected_feature_names = [feature_names[i] for i in selected_indices]
 
     elif config.CURRENT_ITERATION == 4:
         if labels is None:
@@ -56,6 +65,10 @@ def select_features(features, feature_names, config, labels=None, return_indices
         rf.fit(X_train, y_train)
         importances = rf.feature_importances_
         indices = np.argsort(importances)[::-1]
+        print("Feature Name\tImportance Score")
+        for idx in indices:
+            print(f"{feature_names[idx]}\t{importances[idx]:.4f}")
+
         n_keep = 50
         selected_indices = indices[:n_keep]
         selected_features = features[:, selected_indices]
