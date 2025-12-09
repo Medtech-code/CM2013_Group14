@@ -369,8 +369,8 @@ def extract_multi_channel_features(multi_channel_data, config,fs_eeg,fs_eog,fs_e
 
 
     features = np.array(all_features)
-    scaler = RobustScaler()
-    features = scaler.fit_transform(features)
+    # scaler = RobustScaler()
+    # features = scaler.fit_transform(features)
 
     df_features = pd.DataFrame(features, columns=all_feature_names)
     df_features.to_csv(f"features_iter{config.CURRENT_ITERATION}.csv", index=False)
@@ -412,11 +412,11 @@ def extract_single_channel_features(data, config,fs_eeg,fs_eog,fs_emg):
             all_features.append(list(features.values()))
         feature_names = list(extract_time_domain_features(data[0],fs_eeg).keys())   
         df_features = pd.DataFrame(all_features, columns=feature_names)
-        scaler = RobustScaler()
-        normalized_array = scaler.fit_transform(df_features)
-        df_normalized = pd.DataFrame(normalized_array, columns=feature_names)
-        df_normalized.to_csv(f"features_iter{config.CURRENT_ITERATION}.csv", index=False)
-        all_features = df_normalized.values.tolist()
+        # scaler = RobustScaler()
+        # normalized_array = scaler.fit_transform(df_features)
+        # df_normalized = pd.DataFrame(normalized_array, columns=feature_names)
+        df_features.to_csv(f"features_iter{config.CURRENT_ITERATION}.csv", index=False)
+        all_features = df_features.values.tolist()
         features = np.array(all_features)     # 🔹 Show single-epoch visualization (first epoch by default)
         visualize_feature_distributions(features, feature_names)
         visualize_feature_trends(features, feature_names)
