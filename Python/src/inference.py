@@ -29,6 +29,9 @@ def generate_submission_file(predictions, record_numbers, epoch_numbers, config)
         config (module): The configuration module.
     """
     print(f"Generating submission file: {config.SUBMISSION_FILE}...")
+    print(f"Length of predictions: {len(predictions)}")
+    print(f"Length of record_numbers: {len(record_numbers)}")
+    print(f"Length of epoch_numbers: {len(epoch_numbers)}")
     submission_df = pd.DataFrame({
         'record_number': record_numbers,
         'epoch_number': epoch_numbers,
