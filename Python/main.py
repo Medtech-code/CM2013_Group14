@@ -196,17 +196,21 @@ def main():
 
     # === STEP 4: FEATURE SELECTION ===
     print("\n=== STEP 4: FEATURE SELECTION ===")
-    # print(f"Selected features shape: {selected_features.shape}")
 
     cache_filename = f"features_selected_iter{config.CURRENT_ITERATION}.joblib"
     indices_filename = f"selected_indices_iter{config.CURRENT_ITERATION}.npy"
     selected_features = None
+    selected_indices = None
 
     if config.USE_CACHE:
         cached = load_cache(cache_filename, config.CACHE_DIR)
         if cached is not None:
             selected_features = cached
-            print("Loaded selected features from cache")
+            try:
+                selected_indices = np.load(os.path.join(config.CACHE_DIR, indices_filename))
+                print("Loaded selected features and indices from cache")
+            except FileNotFoundError:
+                print("Loaded selected features from cache, but no indices file found")
             print(f"Selected features shape: {selected_features.shape}")
 
     if selected_features is None:
@@ -218,8 +222,12 @@ def main():
             print("Iteration 1: no selection")
             print(f"Selected features shape: {selected_features.shape}")
 
-        else:
+            if config.USE_CACHE:
+                save_cache(selected_features, cache_filename, config.CACHE_DIR)
+                np.save(os.path.join(config.CACHE_DIR, indices_filename), selected_indices)
+                print(f"Saved selected features and indices to cache: {cache_filename}, {indices_filename}")
 
+        else:
             selected_features, selected_indices = select_features(
                 features, feature_names, config, labels=combined_labels, return_indices=True
             )
@@ -230,6 +238,7 @@ def main():
                 print(f"Saved selected features and indices to cache: {cache_filename}, {indices_filename}")
 
             print(f"Selected features shape: {selected_features.shape}")
+
 
 
     # 5. Classification
