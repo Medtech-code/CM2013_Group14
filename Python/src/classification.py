@@ -8,6 +8,14 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 import pandas as pd
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import LeaveOneGroupOut
+from sklearn.model_selection import LeaveOneGroupOut
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import GroupKFold, GridSearchCV
+from sklearn.svm import SVC
+from sklearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline as ImbPipeline
+import joblib
+from src.utils import save_cache, load_cache
 
 
 def train_classifier(features, labels, all_record_ids, config):
@@ -58,9 +66,8 @@ def train_classifier(features, labels, all_record_ids, config):
     # TODO: Students should address class imbalance in sleep data:
     # - Sleep stages are not equally distributed
     # - Consider SMOTE, class weights, or other techniques
-    
-    smote = SMOTE(random_state=42)
-    X_train, y_train = smote.fit_resample(X_train, y_train)
+    #smote = SMOTE(random_state=42)
+    #X_train, y_train = smote.fit_resample(X_train, y_train)
 
     # Select classifier based on iteration (using config parameters)
     if config.CURRENT_ITERATION == 1:
@@ -77,6 +84,47 @@ def train_classifier(features, labels, all_record_ids, config):
             random_state=42
         )
         print(f"Using SVM with C={model.C}, kernel={model.kernel}")
+        # 1. Define the Pipeline (Scaler -> SVM)
+        pipeline = Pipeline([
+            ('scaler', StandardScaler()),
+            ('svm', SVC(kernel='rbf', random_state=42))
+        ])
+
+        # 2. Define the Parameter Grid (Start small due to speed warning)
+        # Note: 'svm__C' and 'svm__gamma' link the parameter to the 'svm' step in the pipeline.
+        param_grid = {
+            'svm__C': [0.1, 1, 10],            # Test three values for C (Regularization)
+            'svm__gamma': ['scale', 0.1, 1]    # Test three values for gamma (Kernel Width)
+        }
+        # 3. Define the Cross-Validation Strategy (3-fold subject-wise)
+        
+        # Use 3 or 5 splits as recommended to save time
+        group_kfold = GroupKFold(n_splits=3) 
+
+        # 4. Initialize GridSearchCV
+        # Pass the pipeline, the parameter grid, and the GroupKFold strategy
+        grid_search = GridSearchCV(
+            estimator=pipeline,
+            param_grid=param_grid,
+            cv=group_kfold.split(features, labels, groups=all_record_ids), # Pass the split iterator
+            scoring='accuracy', # Use 'accuracy' or 'f1_macro' (recommended for imbalanced data)
+            n_jobs=-1,          # Use all available cores for speed
+            verbose=2
+        )
+
+        print("Starting SVM Hyperparameter Tuning with 3-Fold GroupKFold...")
+        # 5. Run the Grid Search
+        # The 'groups' parameter here is essential for GroupKFold/LOSO
+        grid_search.fit(features, labels, groups=all_record_ids) 
+
+        # 6. Output Results
+        print("\n" + "="*50)
+        print(f"✅ Best Hyperparameters: {grid_search.best_params_}")
+        print(f"🏆 Best Mean Cross-Validation Score (Accuracy or F1): {grid_search.best_score_:.3f}")
+        print("="*50)
+
+        # The best model (Pipeline object) is now stored and ready for evaluation
+        best_svm_pipeline = grid_search.best_estimator_
 
     elif config.CURRENT_ITERATION >= 3:
         # Iteration 3+: Random Forest
@@ -93,6 +141,7 @@ def train_classifier(features, labels, all_record_ids, config):
     else:
         raise ValueError(f"Invalid iteration: {config.CURRENT_ITERATION}")
 
+    ''' older simpler 
     # Train the model
     print("Training model...")
     model.fit(X_train, y_train)
@@ -100,10 +149,10 @@ def train_classifier(features, labels, all_record_ids, config):
     # Comprehensive evaluation with detailed performance metrics
     y_pred = model.predict(X_test)
     overall_accuracy = accuracy_score(y_test, y_pred)
-    print(f"Overall accuracy: {overall_accuracy:.3f}")
+    print(f"Overall accuracy for : {overall_accuracy:.3f}")
 
     # Calculate and display detailed performance metrics
-    print_performance_metrics(y_test, y_pred)
+    print_performance_metrics(y_test, y_pred)           '''
 
     # TODO: Students should add more advanced metrics:
     # - Cohen's kappa (important for sleep scoring)
@@ -118,11 +167,23 @@ def train_classifier(features, labels, all_record_ids, config):
     logo = LeaveOneGroupOut()
 
     loso_results = []
+    all_y_test = [] 
+    all_y_pred = []
 
+    #smote resampling also for cross validation
+    smote = SMOTE(random_state=42)
+    
     for fold_idx, (train_idx, test_idx) in enumerate(logo.split(features, labels, groups=all_record_ids)):
         X_train, X_test = features[train_idx], features[test_idx]
         y_train, y_test = labels[train_idx], labels[test_idx]
 
+        X_train, y_train = smote.fit_resample(X_train, y_train)
+        
+        # IMPORTANT: Feature scaling within each fold (no data leakage!)
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
         all_record_ids = np.array(all_record_ids)
 
         # Which subject is held out in this fold?   
@@ -130,10 +191,14 @@ def train_classifier(features, labels, all_record_ids, config):
         print(f"Fold {fold_idx+1}/10: Training on 9 subjects, testing on {test_subject}")
 
         # Train classifier on 9 subjects
-        model.fit(X_train, y_train)
+        model.fit(X_train_scaled, y_train)
 
         # Predict on held-out subject
-        y_pred = model.predict(X_test)
+        y_pred = model.predict(X_test_scaled)
+        
+        # Aggregate for final aggregated Confusion Matrix
+        all_y_test.extend(y_test)
+        all_y_pred.extend(y_pred)
 
         # Calculate metrics for this subject
         accuracy = accuracy_score(y_test, y_pred)
@@ -151,8 +216,9 @@ def train_classifier(features, labels, all_record_ids, config):
         })
 
         print(f"  {test_subject}: Accuracy={accuracy:.1%}, Kappa={kappa:.3f}, F1-macro={f1_macro:.3f}")
-        
+        '''
         print(f"        ------------SLEEP METRICS------------")
+        
         # Compare ground truth vs predictions
         true_metrics = calculate_sleep_metrics(y_test)
         pred_metrics = calculate_sleep_metrics(y_pred)
@@ -162,7 +228,7 @@ def train_classifier(features, labels, all_record_ids, config):
             true_val = true_metrics[metric_name]
             pred_val = pred_metrics[metric_name]
             error = abs(pred_val - true_val)
-            print(f"{metric_name}: True={true_val:.1f}, Pred={pred_val:.1f}, Error={error:.1f}")
+            print(f"{metric_name}: True={true_val:.1f}, Pred={pred_val:.1f}, Error={error:.1f}")    '''
             
 
     # Report mean ± std across all 10 subjects
@@ -176,12 +242,37 @@ def train_classifier(features, labels, all_record_ids, config):
     print(f"  Accuracy = {mean_acc:.1%} ± {std_acc:.1%}")
     print(f"  Kappa    = {mean_kappa:.3f} ± {std_kappa:.3f}")
     print("="*60)
+    
+    # Confusion matrix aggregated across all LOSO folds
+    print_performance_metrics(np.array(all_y_test), np.array(all_y_pred))
 
     # Show per-subject variability
     print("\nPer-Subject Performance:")
     for r in sorted(loso_results, key=lambda x: x['accuracy'], reverse=True):
         print(f"  {r['subject']}: {r['accuracy']:.1%} (kappa={r['kappa']:.3f})")
-    return model
+        
+        
+    final_model_pipeline = ImbPipeline([
+    ('smote', SMOTE(random_state=42)), # Resample the whole dataset (if desired for final model)
+    ('scaler', StandardScaler()),
+    ('classifier', model) # Use the same classifier you defined earlier (e.g., k-NN)
+    ])
+
+    print("\n" + "="*60)
+    print("Training FINAL MODEL on ALL 10 Subjects' Data...")
+    # Fit the pipeline on the ENTIRE dataset
+    final_model_pipeline.fit(features, labels)
+    final_scalar = final_model_pipeline.named_steps['scaler']
+    print("Final model trained successfully.")
+    print("="*60)
+    
+    # 2. Save the FITTED scaler object
+    scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
+    # Assuming you have a save_cache function that uses joblib:
+    save_cache(final_scalar, scaler_filename, config.CACHE_DIR)
+    print(f"✅ Saved final scaler to {config.CACHE_DIR}/{scaler_filename}")
+    
+    return final_model_pipeline
 
 
 def print_performance_metrics(y_true, y_pred):
@@ -347,23 +438,23 @@ def calculate_sleep_metrics(labels, epoch_duration=30):
     }
     
     metrics = {
-        'sleep_onset_latency': float(sleep_onset),  # minutes
+        'Sleep_Onset': float(sleep_onset),  # minutes
         'REM_latency': float(REM_latency),  # minutes
-        'total_sleep_time': float(total_sleep_time_h),  # hours
-        'time_in_bed': float(time_in_bed),  # hours
-        'sleep_efficiency': float(sleep_efficiency),  # percentage
+        'Total_Sleep_Time': float(total_sleep_time_h),  # hours
+        #'time_in_bed': float(time_in_bed),  # hours
+        'Sleep_Efficiency': float(sleep_efficiency),  # percentage
         'WASO': float(WASO),  # minutes
-        'awakenings': int(awakenings),
-        'Wake_count': int(stage_counts[0]),
-        'N1_count': int(stage_counts[1]),
-        'N2_count': int(stage_counts[2]),
-        'N3_count': int(stage_counts[3]),
-        'REM_count': int(stage_counts[4]),
-        'Wake_percentage': float(stage_percentages['Wake']),
-        'N1_percentage': float(stage_percentages['N1']),
-        'N2_percentage': float(stage_percentages['N2']),
-        'N3_percentage': float(stage_percentages['N3']),
-        'REM_percentage': float(stage_percentages['REM'])
+        'Awakenings': int(awakenings),
+        #'Wake_count': int(stage_counts[0]),
+        #'N1_count': int(stage_counts[1]),
+        #'N2_count': int(stage_counts[2]),
+        #'N3_count': int(stage_counts[3]),
+        #'REM_count': int(stage_counts[4]),
+        'Wake': float(stage_percentages['Wake']),
+        'N1': float(stage_percentages['N1']),
+        'N2': float(stage_percentages['N2']),
+        'N3': float(stage_percentages['N3']),
+        'REM': float(stage_percentages['REM'])
     }
 
     return metrics

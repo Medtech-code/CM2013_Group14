@@ -4,19 +4,22 @@ import config
 from src.data_loader import load_holdout_data
 from src.preprocessing import preprocess
 from src.feature_extraction import extract_features
+from src.feature_selection import select_features
 from src.inference import make_inference, generate_submission_file
 from src.utils import save_cache, load_cache
 import os
 import joblib
 import glob
 
-def process_holdout_file(file_path, model, config):
+
+def process_holdout_file(file_path, model, scaler, config):
     """
     Processes one holdout EDF file.
 
     Args:
         file_path (str): EDF file path
         model (_type_): Model of classifier
+        scaler (_type_): Scaler (from training - loaded from cache) used on holdout data
         config (_type_): Config file
     Returns:
         tuple: (prediction_data, record_info) where:
@@ -30,10 +33,46 @@ def process_holdout_file(file_path, model, config):
     # 1. Load Hold-out Data
     try:
         holdout_eeg_data, record_info, channel_info = load_holdout_data(file_path)
+        if holdout_eeg_data:
+            print(f"✅ Data Dictionary: Found {list(holdout_eeg_data.keys())} signals.")
+            for key, data_array in holdout_eeg_data.items():
+                if isinstance(data_array, np.ndarray):
+                    print(f"   -> {key.upper()} Shape: {data_array.shape}")
+                else:
+                    print(f"   -> {key.upper()} is not a NumPy array.")
+        else:
+            print("❌ Data Dictionary: Is EMPTY.")
+
+        # 2. Record Info Check (record_info)
+        if record_info:
+            print(f"✅ Record Info: Epochs={record_info.get('n_epochs', 'N/A')}, ID={record_info.get('record_id', 'N/A')}")
+        else:
+            print("❌ Record Info: Is EMPTY.")
+
+        # 3. Channel Info Check (channel_info)
+        if channel_info:
+            print(f"✅ Channel Info: Epoch Length={channel_info.get('epoch_length', 'N/A')}, FS (EEG)={channel_info.get('eeg_fs', 'N/A')} Hz")
+        else:
+            print("❌ Channel Info: Is EMPTY.")
+            
     except Exception as e:
         print(f"error! Failed to load {record_id}: {e}")
         return
-    
+    # Check if the main data structure is valid
+    if holdout_eeg_data is None or not isinstance(holdout_eeg_data, dict) or not holdout_eeg_data:
+        print(f"Error! Loaded EEG data for {record_id} is empty or invalid.")
+        return None, None, None
+
+    # Check if critical metadata is present
+    if record_info is None or not isinstance(record_info, dict) or not record_info:
+        print(f"Error! Record metadata (record_info) for {record_id} is missing.")
+        return None, None, None
+        
+    # Check if channel information is present (if required for later steps)
+    if channel_info is None or not isinstance(channel_info, dict) or not channel_info:
+        print(f"Warning! Channel information for {record_id} is missing or empty.")
+        # Decide here if this is a fatal error or just a warning.
+        
     # 2. Preprocessing (using the same logic as training)
     preprocessed_holdout_data = None
     cache_filename_preprocess_holdout = f"preprocessed_holdout_data_iter{config.CURRENT_ITERATION}.joblib"
@@ -49,29 +88,55 @@ def process_holdout_file(file_path, model, config):
         if config.USE_CACHE:
             save_cache(preprocessed_holdout_data, cache_filename_preprocess_holdout, config.CACHE_DIR)
             
+
     # 3. Feature Extraction (using the same logic as training)
     holdout_features = None
     cache_filename_features_holdout = f"features_holdout_iter{config.CURRENT_ITERATION}.joblib"
     if config.USE_CACHE:
         holdout_features = load_cache(cache_filename_features_holdout, config.CACHE_DIR)
-
+        print(holdout_features)
     if holdout_features is None:
         try:
-            holdout_features = extract_features(preprocessed_holdout_data, config, channel_info)
+            if config.CURRENT_ITERATION==2:
+                preprocessed_holdout_data_eeg=preprocessed_holdout_data['eeg'][:, 0, :]
+                preprocessed_holdout_data_eog=preprocessed_holdout_data['eog'][:,0,:]
+                holdout_features,feature_names = extract_features([preprocessed_holdout_data_eeg,preprocessed_holdout_data_eog], config, channel_info)
+            else:#iteration 1
+                holdout_features,feature_names = extract_features(preprocessed_holdout_data, config, channel_info)
+
         except Exception as e:
             print(f"error! Failed feature extraction for {record_id}: {e}")
             return None        
         if config.USE_CACHE:
             save_cache(holdout_features, cache_filename_features_holdout, config.CACHE_DIR)
 
+    # Feature selection
+    selected_holdout_features=None
+    cache_filename_selectedfeatures_holdout = f"features_selectedholdout_iter{config.CURRENT_ITERATION}.joblib"
+    if config.USE_CACHE:
+        holdout_selected_features = load_cache(cache_filename_selectedfeatures_holdout, config.CACHE_DIR)
+
+    if selected_holdout_features is None:
+        try:
+            selected_indices = np.load(f"cache\selected_indices_iter{config.CURRENT_ITERATION}.npy")
+            holdout_selected_features = holdout_features[:, selected_indices]
+        except Exception as e:
+            print(f"error! Failed feature extraction for {record_id}: {e}")
+            return None        
+        if config.USE_CACHE:
+            save_cache(holdout_selected_features, cache_filename_selectedfeatures_holdout, config.CACHE_DIR)
+
+    
     # 4. Make Inference
     try:
-        prediction = make_inference(model, holdout_features, config)
+        prediction = make_inference(model, holdout_selected_features, config)
+        if prediction is None:
+            raise ValueError(f"Inference failed for record {record_id}: 'prediction' is None.")
         print(f"Prediction for {record_id} successful")
         return prediction, record_info
     except Exception as e:
         print(f"error! Failed prediction for {record_id}: {e}")
-        return
+        return None, None
         
         
 def run_inference():
@@ -83,6 +148,14 @@ def run_inference():
     if model is None:
         print("Error: Trained model not found. Please run main.py first to train a model.")
         return
+    # --- Load the FITTED Scaler ---
+    scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
+    # Assuming load_cache uses joblib:
+    scaler = load_cache(scaler_filename, config.CACHE_DIR)
+    if scaler is None:
+        print("Error: Trained scaler not found. Aborting inference.")
+        return
+    print(f"✅ Loaded scaler from {config.CACHE_DIR}/{scaler_filename}")
 
     # 1. Load Hold-out Data files
     #           -For iterating through files.
@@ -97,11 +170,14 @@ def run_inference():
     # 2. Preprocessing each file
     
     for file in holdout_files:
-        prediction, record_info = process_holdout_file(str(file), model, config)
-        if prediction and record_info:
+        prediction, record_info = process_holdout_file(str(file), model, scaler, config)
+        if len(prediction) != len(record_info):
+            raise ValueError(f"prediction and record_info length do not match!!")
+        if prediction is not None and prediction.size > 0 and record_info:
 
             n_epochs = record_info['n_epochs']
             record_id = record_info['record_id']
+            n_predicted_epochs = len(prediction)
             
             predictions.extend(prediction)
             
