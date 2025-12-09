@@ -101,6 +101,7 @@ def process_holdout_file(file_path, model, scaler, config):
                 preprocessed_holdout_data_eeg=preprocessed_holdout_data['eeg'][:, 0, :]
                 preprocessed_holdout_data_eog=preprocessed_holdout_data['eog'][:,0,:]
                 holdout_features,feature_names = extract_features([preprocessed_holdout_data_eeg,preprocessed_holdout_data_eog], config, channel_info)
+                
             else:#iteration 1
                 holdout_features,feature_names = extract_features(preprocessed_holdout_data, config, channel_info)
 
@@ -120,6 +121,7 @@ def process_holdout_file(file_path, model, scaler, config):
         try:
             selected_indices = np.load(f"cache\selected_indices_iter{config.CURRENT_ITERATION}.npy")
             holdout_selected_features = holdout_features[:, selected_indices]
+            holdout_selected_features = scaler.transform(holdout_selected_features)
         except Exception as e:
             print(f"error! Failed feature extraction for {record_id}: {e}")
             return None        
@@ -136,7 +138,7 @@ def process_holdout_file(file_path, model, scaler, config):
         return prediction, record_info
     except Exception as e:
         print(f"error! Failed prediction for {record_id}: {e}")
-        return None
+        return None, None
         
         
 def run_inference():
