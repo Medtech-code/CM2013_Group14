@@ -136,7 +136,7 @@ def process_holdout_file(file_path, model, scaler, config):
         return prediction, record_info
     except Exception as e:
         print(f"error! Failed prediction for {record_id}: {e}")
-        return None, None
+        return None
         
         
 def run_inference():
