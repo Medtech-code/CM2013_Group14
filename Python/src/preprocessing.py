@@ -189,7 +189,7 @@ def preprocess_multi_channel(multi_channel_data, config, channel_info):
         axes[1].legend()
         plt.xlabel('Sample')
         plt.tight_layout()
-        plt.show()
+        #plt.show()
 
         #print("Channel 0 RAW mean:", np.mean(raw_eeg[:, 0]))
         #print("Channel 0 Filtered mean:", np.mean(filtered_signal[:]))
@@ -326,7 +326,7 @@ def validate_filtering(original, filtered, fs):
     plt.xlabel('Sample')
     plt.ylabel('Amplitude')
     plt.legend()
-    plt.show()
+    #plt.show()
 
     # 4. Power spectrum comparison
     f_orig, Pxx_orig = welch(original, fs)
@@ -338,7 +338,7 @@ def validate_filtering(original, filtered, fs):
     plt.xlabel("Frequency (Hz)")
     plt.ylabel("Power Spectral Density")
     plt.legend()
-    plt.show()
+    #plt.show()
 
     # 5. Zoom on delta band (0-5 Hz)
     plt.figure(figsize=(8, 4))
@@ -349,7 +349,7 @@ def validate_filtering(original, filtered, fs):
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Power Spectral Density')
     plt.legend()
-    plt.show()
+    #plt.show()
 
     # 6. Zoom on 50 Hz region
     plt.figure(figsize=(8, 4))
@@ -360,7 +360,7 @@ def validate_filtering(original, filtered, fs):
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Power Spectral Density')
     plt.legend()
-    plt.show()
+    #plt.show()
 
     # 7. Compute and check powerline attenuation safely
     notch_band = (f_orig > 45) & (f_orig < 55)

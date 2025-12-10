@@ -239,8 +239,6 @@ def main():
 
             print(f"Selected features shape: {selected_features.shape}")
 
-    print(f"************************selected_features:{selected_features}")
-
     # 5. Classification
     print("\n=== STEP 5: CLASSIFICATION ===")
     if selected_features.shape[1] > 0:

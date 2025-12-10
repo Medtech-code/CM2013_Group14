@@ -383,7 +383,7 @@ def extract_multi_channel_features(multi_channel_data, config,fs_eeg,fs_eog,fs_e
     plt.xlabel("PC1")
     plt.ylabel("PC2")
     plt.title("PCA of Features")
-    plt.show()
+    #plt.show()
 
     
     if config.CURRENT_ITERATION == 1:
@@ -665,7 +665,7 @@ def visualize_features(data, epoch_index, all_features=None, normalize=True):
     axes[1].tick_params(axis='x', rotation=45)
 
     plt.tight_layout()
-    plt.show()
+    #plt.show()
 
 
 def visualize_feature_distributions(features_array, feature_names):
@@ -680,7 +680,7 @@ def visualize_feature_distributions(features_array, feature_names):
     plt.xticks(rotation=45)
     plt.ylabel("Feature Value")
     plt.tight_layout()
-    plt.show()
+    #plt.show()
     
 
 
@@ -696,7 +696,7 @@ def visualize_feature_trends(features_array, feature_names):
     plt.ylabel("Feature Value")
     plt.legend(ncol=4)
     plt.tight_layout()
-    plt.show()
+    #plt.show()
 
 
 def review_outlier_epochs(data, features, feature_names, feature_key, fs=100, threshold=2.5):
@@ -741,7 +741,7 @@ def review_outlier_epochs(data, features, feature_names, feature_key, fs=100, th
         axs[1].set_ylabel("Frequency (Hz)")
 
         plt.tight_layout()
-        plt.show()
+        #plt.show()
 
 def detect_blinks(data, threshold=None):
     if threshold is None:
@@ -822,7 +822,7 @@ def visualize_eog_peaks(
     plt.ylabel("Amplitude")
     plt.legend()
     plt.tight_layout()
-    plt.show()
+    #plt.show()
 
 
 def highpass_filter(signal, fs, cutoff=0.5, order=4):
