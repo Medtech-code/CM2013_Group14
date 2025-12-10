@@ -78,28 +78,30 @@ def train_classifier(features, labels, all_record_ids, config):
     elif config.CURRENT_ITERATION == 2:
         # Iteration 2: SVM
         # TODO: Students should tune hyperparameters (C, kernel, gamma)
-        model = SVC(
+        '''model = SVC(
             C=getattr(config, 'SVM_C', 1.0),
             kernel=getattr(config, 'SVM_KERNEL', 'rbf'),
             random_state=42
         )
-        print(f"Using SVM with C={model.C}, kernel={model.kernel}")
+        print(f"Using SVM with C={model.C}, kernel={model.kernel}")'''
         # 1. Define the Pipeline (Scaler -> SVM)
         pipeline = Pipeline([
             ('scaler', StandardScaler()),
             ('svm', SVC(kernel='rbf', random_state=42))
         ])
-
+        
         # 2. Define the Parameter Grid (Start small due to speed warning)
         # Note: 'svm__C' and 'svm__gamma' link the parameter to the 'svm' step in the pipeline.
         param_grid = {
-            'svm__C': [0.1, 1, 10],            # Test three values for C (Regularization)
-            'svm__gamma': ['scale', 0.1, 1]    # Test three values for gamma (Kernel Width)
+            'svm__C': [0.1, 0.12, 0.14],  # Focus around 0.5
+            'svm__kernel': ['linear'],  # Linear performed best, focus on it
+            'svm__gamma': ['scale'],  # Keep 'scale' since it worked
+            'svm__class_weight': [None, 'balanced']  # Test balanced vs None
         }
         # 3. Define the Cross-Validation Strategy (3-fold subject-wise)
         
         # Use 3 or 5 splits as recommended to save time
-        group_kfold = GroupKFold(n_splits=3) 
+        group_kfold = GroupKFold(n_splits=5) 
 
         # 4. Initialize GridSearchCV
         # Pass the pipeline, the parameter grid, and the GroupKFold strategy
@@ -124,7 +126,8 @@ def train_classifier(features, labels, all_record_ids, config):
         print("="*50)
 
         # The best model (Pipeline object) is now stored and ready for evaluation
-        best_svm_pipeline = grid_search.best_estimator_
+        model = grid_search.best_estimator_
+        print(f"Using SVM with params:{grid_search.best_estimator_}")
 
     elif config.CURRENT_ITERATION >= 3:
         # Iteration 3+: Random Forest
@@ -216,7 +219,7 @@ def train_classifier(features, labels, all_record_ids, config):
         })
 
         print(f"  {test_subject}: Accuracy={accuracy:.1%}, Kappa={kappa:.3f}, F1-macro={f1_macro:.3f}")
-        '''
+        
         print(f"        ------------SLEEP METRICS------------")
         
         # Compare ground truth vs predictions
@@ -228,7 +231,7 @@ def train_classifier(features, labels, all_record_ids, config):
             true_val = true_metrics[metric_name]
             pred_val = pred_metrics[metric_name]
             error = abs(pred_val - true_val)
-            print(f"{metric_name}: True={true_val:.1f}, Pred={pred_val:.1f}, Error={error:.1f}")    '''
+            print(f"{metric_name}: True={true_val:.1f}, Pred={pred_val:.1f}, Error={error:.1f}")    
             
 
     # Report mean ± std across all 10 subjects
@@ -254,7 +257,7 @@ def train_classifier(features, labels, all_record_ids, config):
         
     final_model_pipeline = ImbPipeline([
     ('smote', SMOTE(random_state=42)), # Resample the whole dataset (if desired for final model)
-    #('scaler', StandardScaler()),
+    ('scaler', StandardScaler()),
     ('classifier', model) # Use the same classifier you defined earlier (e.g., k-NN)
     ])
 
@@ -262,7 +265,7 @@ def train_classifier(features, labels, all_record_ids, config):
     print("Training FINAL MODEL on ALL 10 Subjects' Data...")
     # Fit the pipeline on the ENTIRE dataset
     final_model_pipeline.fit(features, labels)
-    '''final_scalar = final_model_pipeline.named_steps['scaler']
+    final_scalar = final_model_pipeline.named_steps['scaler']
     print("Final model trained successfully.")
     print("="*60)
     
@@ -271,7 +274,7 @@ def train_classifier(features, labels, all_record_ids, config):
     scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
     # Assuming you have a save_cache function that uses joblib:
     save_cache(final_scalar, scaler_filename, config.CACHE_DIR)
-    print(f"✅ Saved final scaler to {config.CACHE_DIR}/{scaler_filename}") '''
+    print(f"✅ Saved final scaler to {config.CACHE_DIR}/{scaler_filename}") 
     
     return final_model_pipeline
 

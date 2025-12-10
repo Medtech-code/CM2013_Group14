@@ -91,7 +91,7 @@ def process_holdout_file(file_path, model, scaler,config):
         try:
             selected_indices = np.load(f"cache\selected_indices_iter{config.CURRENT_ITERATION}.npy")
             selected_holdout_features = holdout_features[:, selected_indices]
-            '''
+            
             if scaler is not None:
                 print("Applying scaler to holdout features...")
                 # The debugging print statements are great for confirming scaling works!
@@ -104,7 +104,7 @@ def process_holdout_file(file_path, model, scaler,config):
                 print(f"After scaling - mean: {selected_holdout_features.mean():.4f}, std: {selected_holdout_features.std():.4f}")
             else:
                 print("WARNING: No scaler provided. Using raw features.")
-                '''
+                
         except Exception as e:
             print(f"error! Failed feature extraction for {record_id}: {e}")
             return None, None        
@@ -131,13 +131,13 @@ def run_inference():
     if model is None:
         print("Error: Trained model not found. Please run main.py first to train a model.")
         return
-    '''
+    
     # --- NEW: Load the FITTED Scaler ---
     scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
     scaler = load_cache(scaler_filename, config.CACHE_DIR)
     if scaler is None:
         print("Error: Fitted scaler not found! Cannot perform consistent inference.")
-        return  '''
+        return  
 
     # 1. Load Hold-out Data files
     #           -For iterating through files.
@@ -150,7 +150,6 @@ def run_inference():
     epoch_numbers = []
     record_numbers = []
     # 2. Preprocessing each file
-    scaler=None
     for file in holdout_files:
         prediction, record_info = process_holdout_file(str(file), model, scaler, config)
         if prediction.size > 0 and record_info:
