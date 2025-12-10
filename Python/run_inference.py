@@ -12,13 +12,14 @@ import joblib
 import glob
 
 
-def process_holdout_file(file_path, model, config):
+def process_holdout_file(file_path, model, scaler,config):
     """
     Processes one holdout EDF file.
 
     Args:
         file_path (str): EDF file path
         model (_type_): Model of classifier
+        scaler (_type_): Scaler used for training data for model training
         config (_type_): Config file
     Returns:
         tuple: (prediction_data, record_info) where:
@@ -46,13 +47,13 @@ def process_holdout_file(file_path, model, config):
         try:
             if config.CURRENT_ITERATION==1:
               preprocessed_holdout_data = preprocess(holdout_eeg_data['eeg'][:,0,:], config, channel_info)
-            
+        
             else:
                 preprocessed_holdout_data=preprocess(holdout_eeg_data,config,channel_info)
         
         except Exception as e:
             print(f"error! Failed preprocessing for {record_id}: {e}")
-            return None        
+            return None, None   
         if config.USE_CACHE:
             save_cache(preprocessed_holdout_data, cache_filename_preprocess_holdout, config.CACHE_DIR)
             
@@ -62,7 +63,6 @@ def process_holdout_file(file_path, model, config):
     cache_filename_features_holdout = f"features_holdout_iter{config.CURRENT_ITERATION}.joblib"
     if config.USE_CACHE:
         holdout_features = load_cache(cache_filename_features_holdout, config.CACHE_DIR)
-        print(holdout_features)
     if holdout_features is None:
         try:
             if config.CURRENT_ITERATION==2:
@@ -77,35 +77,49 @@ def process_holdout_file(file_path, model, config):
 
         except Exception as e:
             print(f"error! Failed feature extraction for {record_id}: {e}")
-            return None        
+            return None, None        
         if config.USE_CACHE:
             save_cache(holdout_features, cache_filename_features_holdout, config.CACHE_DIR)
 
     # Feature selection
     selected_holdout_features=None
-    cache_filename_selectedfeatures_holdout = f"features_selectedholdout_iter{config.CURRENT_ITERATION}.joblib"
+    cache_filename_selected_features_holdout = f"features_selectedholdout_iter{config.CURRENT_ITERATION}.joblib"
     if config.USE_CACHE:
-        holdout_selected_features = load_cache(cache_filename_selectedfeatures_holdout, config.CACHE_DIR)
+        selected_holdout_features = load_cache(cache_filename_selected_features_holdout, config.CACHE_DIR)
 
     if selected_holdout_features is None:
         try:
             selected_indices = np.load(f"cache\selected_indices_iter{config.CURRENT_ITERATION}.npy")
-            holdout_selected_features = holdout_features[:, selected_indices]
+            selected_holdout_features = holdout_features[:, selected_indices]
+            '''
+            if scaler is not None:
+                print("Applying scaler to holdout features...")
+                # The debugging print statements are great for confirming scaling works!
+                print(f"Before scaling - min: {selected_holdout_features.min():.4f}, max: {selected_holdout_features.max():.4f}")
+                
+                # --- APPLY THE FITTED SCALER ---
+                selected_holdout_features = scaler.transform(selected_holdout_features)
+                
+                print(f"After scaling - min: {selected_holdout_features.min():.4f}, max: {selected_holdout_features.max():.4f}")
+                print(f"After scaling - mean: {selected_holdout_features.mean():.4f}, std: {selected_holdout_features.std():.4f}")
+            else:
+                print("WARNING: No scaler provided. Using raw features.")
+                '''
         except Exception as e:
             print(f"error! Failed feature extraction for {record_id}: {e}")
-            return None        
+            return None, None        
         if config.USE_CACHE:
-            save_cache(holdout_selected_features, cache_filename_selectedfeatures_holdout, config.CACHE_DIR)
+            save_cache(selected_holdout_features, cache_filename_selected_features_holdout, config.CACHE_DIR)
 
-    
+    print(f"******************************selected_holdout_features: {selected_holdout_features}")
     # 4. Make Inference
     try:
-        prediction = make_inference(model, holdout_selected_features, config)
-        print(f"Prediction for {record_id} successful")
+        prediction = make_inference(model, selected_holdout_features, config)
+        print(f"Prediction for {record_id} successful: {prediction}")
         return prediction, record_info
     except Exception as e:
         print(f"error! Failed prediction for {record_id}: {e}")
-        return None
+        return None, None
         
         
 def run_inference():
@@ -117,6 +131,13 @@ def run_inference():
     if model is None:
         print("Error: Trained model not found. Please run main.py first to train a model.")
         return
+    '''
+    # --- NEW: Load the FITTED Scaler ---
+    scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
+    scaler = load_cache(scaler_filename, config.CACHE_DIR)
+    if scaler is None:
+        print("Error: Fitted scaler not found! Cannot perform consistent inference.")
+        return  '''
 
     # 1. Load Hold-out Data files
     #           -For iterating through files.
@@ -129,24 +150,25 @@ def run_inference():
     epoch_numbers = []
     record_numbers = []
     # 2. Preprocessing each file
-    
+    scaler=None
     for file in holdout_files:
-        prediction, record_info = process_holdout_file(str(file), model, config)
-        if prediction and record_info:
-
-            n_epochs = record_info['n_epochs']
+        prediction, record_info = process_holdout_file(str(file), model, scaler, config)
+        if prediction.size > 0 and record_info:
+            #n_epochs = record_info['n_epochs']
+            actual_n_epochs = len(prediction)
             record_id = record_info['record_id']
             
             predictions.extend(prediction)
             
             record_int = int(record_id.replace('H', '')) if record_id.startswith('H') else 0
-            record_numbers.extend([record_int] * n_epochs)
-            epoch_numbers.extend(range(1, n_epochs + 1))
+            record_numbers.extend([record_int] * actual_n_epochs)
+            epoch_numbers.extend(range(1, actual_n_epochs + 1))
 
     predictions = np.array(predictions)
 
 
     # 5. Generate Submission File
+    
     generate_submission_file(predictions, record_numbers, epoch_numbers, config)
 
     print("--- Inference Finished ---")

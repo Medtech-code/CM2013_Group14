@@ -254,7 +254,7 @@ def train_classifier(features, labels, all_record_ids, config):
         
     final_model_pipeline = ImbPipeline([
     ('smote', SMOTE(random_state=42)), # Resample the whole dataset (if desired for final model)
-    ('scaler', StandardScaler()),
+    #('scaler', StandardScaler()),
     ('classifier', model) # Use the same classifier you defined earlier (e.g., k-NN)
     ])
 
@@ -262,15 +262,16 @@ def train_classifier(features, labels, all_record_ids, config):
     print("Training FINAL MODEL on ALL 10 Subjects' Data...")
     # Fit the pipeline on the ENTIRE dataset
     final_model_pipeline.fit(features, labels)
-    final_scalar = final_model_pipeline.named_steps['scaler']
+    '''final_scalar = final_model_pipeline.named_steps['scaler']
     print("Final model trained successfully.")
     print("="*60)
+    
     
     # 2. Save the FITTED scaler object
     scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
     # Assuming you have a save_cache function that uses joblib:
     save_cache(final_scalar, scaler_filename, config.CACHE_DIR)
-    print(f"✅ Saved final scaler to {config.CACHE_DIR}/{scaler_filename}")
+    print(f"✅ Saved final scaler to {config.CACHE_DIR}/{scaler_filename}") '''
     
     return final_model_pipeline
 

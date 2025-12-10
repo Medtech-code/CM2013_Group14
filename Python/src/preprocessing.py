@@ -115,8 +115,9 @@ def preprocess_multi_channel(multi_channel_data, config, channel_info):
     preprocessed_eeg = np.zeros_like(eeg_data)
 
     for ch in range(eeg_data.shape[1]): #eeg_data: n_epochs, n_channels, n_samples_per_epoch
+        print(f"Processing channel 1...")
         for epoch in range(eeg_data.shape[0]):
-            print(f"Processing channel {ch}, epoch {epoch}")
+            #print(f"Processing channel {ch}, epoch {epoch}")
             signal = eeg_data[epoch, ch, :] #eg: singal = eeg_data[0,1,:] - all samples from channel 1(C4-A1) in the first epoch
             # Apply EEG-specific preprocessing
             filtered_signal = bandpass_filter(signal, config.HIGH_PASS_FILTER_FREQ, config.LOW_PASS_FILTER_FREQ, eeg_fs)
