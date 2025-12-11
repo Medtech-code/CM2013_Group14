@@ -16,6 +16,8 @@ from sklearn.pipeline import Pipeline
 from imblearn.pipeline import Pipeline as ImbPipeline
 import joblib
 from src.utils import save_cache, load_cache
+from sklearn.base import clone
+
 
 
 def train_classifier(features, labels, all_record_ids, config):
@@ -50,6 +52,7 @@ def train_classifier(features, labels, all_record_ids, config):
     # TODO: Students should implement k-fold cross-validation for more robust evaluation
     # Use stratified split for realistic sleep data distribution
     # Sleep stages are naturally imbalanced (more N2, less N1/REM)
+    '''
     try:
         X_train, X_test, y_train, y_test = train_test_split(
             features, labels, test_size=0.2, random_state=42, stratify=labels
@@ -61,7 +64,7 @@ def train_classifier(features, labels, all_record_ids, config):
             features, labels, test_size=0.2, random_state=42
         )
         print(f"Using non-stratified split: {e}")
-    print(f"Training set: {X_train.shape[0]} samples, Test set: {X_test.shape[0]} samples")
+    print(f"Training set: {X_train.shape[0]} samples, Test set: {X_test.shape[0]} samples")'''
 
     # TODO: Students should address class imbalance in sleep data:
     # - Sleep stages are not equally distributed
@@ -69,10 +72,19 @@ def train_classifier(features, labels, all_record_ids, config):
     #smote = SMOTE(random_state=42)
     #X_train, y_train = smote.fit_resample(X_train, y_train)
 
+
+
+    logo = LeaveOneGroupOut()
+    
     # Select classifier based on iteration (using config parameters)
     if config.CURRENT_ITERATION == 1:
         # Iteration 1: Simple k-NN
-        model = KNeighborsClassifier(n_neighbors=config.KNN_N_NEIGHBORS)
+        pipeline = ImbPipeline([
+            ('smote', SMOTE(random_state=42)),
+            ('scaler', StandardScaler()),
+            ('knn', KNeighborsClassifier(n_neighbors=config.KNN_N_NEIGHBORS))
+        ])
+        model = pipeline
         print(f"Using k-NN with k={config.KNN_N_NEIGHBORS}")
 
     elif config.CURRENT_ITERATION == 2:
@@ -85,15 +97,16 @@ def train_classifier(features, labels, all_record_ids, config):
         )
         print(f"Using SVM with C={model.C}, kernel={model.kernel}")'''
         # 1. Define the Pipeline (Scaler -> SVM)
-        pipeline = Pipeline([
+        pipeline = ImbPipeline([
+            #('smote', SMOTE(random_state=42)),
             ('scaler', StandardScaler()),
-            ('svm', SVC(kernel='rbf', random_state=42))
+            ('svm', SVC(random_state=42))
         ])
         
         # 2. Define the Parameter Grid (Start small due to speed warning)
         # Note: 'svm__C' and 'svm__gamma' link the parameter to the 'svm' step in the pipeline.
         param_grid = {
-            'svm__C': [0.1, 0.12, 0.14],  # Focus around 0.5
+            'svm__C': [0.1, 0.12, 0.14],
             'svm__kernel': ['linear'],  # Linear performed best, focus on it
             'svm__gamma': ['scale'],  # Keep 'scale' since it worked
             'svm__class_weight': [None, 'balanced']  # Test balanced vs None
@@ -132,14 +145,51 @@ def train_classifier(features, labels, all_record_ids, config):
     elif config.CURRENT_ITERATION >= 3:
         # Iteration 3+: Random Forest
         # TODO: Students should tune hyperparameters (n_estimators, max_depth, etc.)
-        model = RandomForestClassifier(
-            n_estimators=getattr(config, 'RF_N_ESTIMATORS', 100),
-            max_depth=getattr(config, 'RF_MAX_DEPTH', None),
-            min_samples_split=getattr(config, 'RF_MIN_SAMPLES_SPLIT', 2),
+        
+        base_pipe_rf = ImbPipeline([
+        #('smote', SMOTE(random_state=42)),
+        #('scaler', StandardScaler()),
+        ('classifier', RandomForestClassifier(
             random_state=42,
-            n_jobs=-1  # Use all available cores
+            n_jobs=-1,
+            class_weight='balanced',
+            max_depth=30,
+            min_samples_leaf=4,
+            min_samples_split=2,
+            n_estimators=200,
+        )),
+        ]) 
+        
+        param_grid = {
+            'classifier__n_estimators': [200, 400],
+            'classifier__max_depth': [20, 30, 50],
+            'classifier__min_samples_split': [2, 7],
+            'classifier__min_samples_leaf': [1, 4],
+            'classifier__class_weight': ['balanced']
+        }
+        group_kfold = GroupKFold(n_splits=5) 
+        
+        print("Starting RandomForest hyperparameter tuning with LOSO GridSearchCV...")
+        grid_search = GridSearchCV(
+            estimator=base_pipe_rf,
+            param_grid=param_grid,
+            cv=logo.split(features, labels, groups=all_record_ids),
+            scoring='f1_macro',     # good for imbalanced multi-class
+            n_jobs=-1,
+            verbose=2
         )
-        print(f"Using Random Forest with {model.n_estimators} trees")
+        
+        grid_search.fit(features, labels, groups=all_record_ids)
+
+        print("\n" + "="*60)
+        print(f"✅ Best RF Hyperparameters: {grid_search.best_params_}")
+        print(f"🏆 Best Mean LOSO CV F1-macro: {grid_search.best_score_:.3f}")
+        print("="*60)
+
+        # Best pipeline (SMOTE + scaler + RF with tuned params)
+        model = grid_search.best_estimator_
+        print(f"Using Random Forest with params:{grid_search.best_estimator_}")
+        
 
     else:
         raise ValueError(f"Invalid iteration: {config.CURRENT_ITERATION}")
@@ -167,37 +217,38 @@ def train_classifier(features, labels, all_record_ids, config):
     # Assuming you tracked record_ids when loading data
     # record_ids is array like ['R1', 'R1', ..., 'R2', 'R2', ..., 'R10', 'R10', ...]
     # Create LOSO cross-validation split
-    logo = LeaveOneGroupOut()
-
+    
     loso_results = []
     all_y_test = [] 
     all_y_pred = []
 
     #smote resampling also for cross validation
-    smote = SMOTE(random_state=42)
-    
+    #smote = SMOTE(random_state=42)
+    all_record_ids = np.array(all_record_ids)
+
     for fold_idx, (train_idx, test_idx) in enumerate(logo.split(features, labels, groups=all_record_ids)):
         X_train, X_test = features[train_idx], features[test_idx]
         y_train, y_test = labels[train_idx], labels[test_idx]
 
-        X_train, y_train = smote.fit_resample(X_train, y_train)
+        '''X_train, y_train = smote.fit_resample(X_train, y_train)
         
         # IMPORTANT: Feature scaling within each fold (no data leakage!)
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
+        X_test_scaled = scaler.transform(X_test)'''
         
-        all_record_ids = np.array(all_record_ids)
 
         # Which subject is held out in this fold?   
         test_subject = np.unique(all_record_ids[test_idx])[0]
         print(f"Fold {fold_idx+1}/10: Training on 9 subjects, testing on {test_subject}")
 
         # Train classifier on 9 subjects
-        model.fit(X_train_scaled, y_train)
+        fold_model = clone(model)
+        fold_model.fit(X_train, y_train)
+        #model.fit(X_train, y_train)
 
         # Predict on held-out subject
-        y_pred = model.predict(X_test_scaled)
+        y_pred = fold_model.predict(X_test)
         
         # Aggregate for final aggregated Confusion Matrix
         all_y_test.extend(y_test)
@@ -254,28 +305,42 @@ def train_classifier(features, labels, all_record_ids, config):
     for r in sorted(loso_results, key=lambda x: x['accuracy'], reverse=True):
         print(f"  {r['subject']}: {r['accuracy']:.1%} (kappa={r['kappa']:.3f})")
         
-        
+    ''' 
     final_model_pipeline = ImbPipeline([
     ('smote', SMOTE(random_state=42)), # Resample the whole dataset (if desired for final model)
     ('scaler', StandardScaler()),
     ('classifier', model) # Use the same classifier you defined earlier (e.g., k-NN)
-    ])
+    ])'''
 
     print("\n" + "="*60)
     print("Training FINAL MODEL on ALL 10 Subjects' Data...")
-    # Fit the pipeline on the ENTIRE dataset
+    final_model_pipeline = clone(model)
     final_model_pipeline.fit(features, labels)
-    final_scalar = final_model_pipeline.named_steps['scaler']
+    
     print("Final model trained successfully.")
     print("="*60)
     
+    '''
+    if hasattr(final_model_pipeline, "named_steps") and 'scaler' in final_model_pipeline.named_steps:
+        final_scaler = final_model_pipeline.named_steps['scaler']
+        scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
+        save_cache(final_scaler, scaler_filename, config.CACHE_DIR)
+        print(f"✅ Saved final scaler to {config.CACHE_DIR}/{scaler_filename}") '''
+    
     
     # 2. Save the FITTED scaler object
-    scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
+    #scaler_filename = f"scaler_iter{config.CURRENT_ITERATION}.joblib"
     # Assuming you have a save_cache function that uses joblib:
-    save_cache(final_scalar, scaler_filename, config.CACHE_DIR)
-    print(f"✅ Saved final scaler to {config.CACHE_DIR}/{scaler_filename}") 
+    #save_cache(final_scalar, scaler_filename, config.CACHE_DIR)
+    #print(f"✅ Saved final scaler to {config.CACHE_DIR}/{scaler_filename}") 
     
+    
+    print("\nSanity check: prediction distribution on TRAINING data with final model")
+    train_pred = final_model_pipeline.predict(features)
+    unique, counts = np.unique(train_pred, return_counts=True)
+    for u, c in zip(unique, counts):
+        print(f"  Predicted label {u}: {c} samples ({100*c/len(train_pred):.1f}%)")
+            
     return final_model_pipeline
 
 

@@ -35,7 +35,7 @@ def process_holdout_file(file_path, model, scaler,config):
         holdout_eeg_data, record_info, channel_info = load_holdout_data(file_path)
     except Exception as e:
         print(f"error! Failed to load {record_id}: {e}")
-        return
+        return None, None
     # DIFFERENT print(f"******************************holdout_eeg_data: {holdout_eeg_data}")# DIFFERENT 
 
     # 2. Preprocessing (using the same logic as training)
@@ -55,7 +55,7 @@ def process_holdout_file(file_path, model, scaler,config):
             return None, None   
         if config.USE_CACHE:
             save_cache(preprocessed_holdout_data, cache_filename_preprocess_holdout, config.CACHE_DIR)
-    #print(f"******************************2preprocessed_holdout_data: {preprocessed_holdout_data}")# SAME
+    print(f"******************************2preprocessed_holdout_data: {preprocessed_holdout_data}")# SAME
         
     # 3. Feature Extraction (using the same logic as training)
     holdout_features = None
@@ -76,7 +76,7 @@ def process_holdout_file(file_path, model, scaler,config):
             return None, None        
         if config.USE_CACHE:
             save_cache(holdout_features, cache_filename_features_holdout, config.CACHE_DIR)
-    #print(f"******************************holdout_features: {holdout_features}")     #SAME     
+    print(f"******************************holdout_features: {holdout_features}")     #SAME     
 
     # Feature selection
     selected_holdout_features=None
@@ -86,9 +86,12 @@ def process_holdout_file(file_path, model, scaler,config):
 
     if selected_holdout_features is None:
         try:
-            selected_indices = np.load(f"cache\selected_indices_iter{config.CURRENT_ITERATION}.npy")
+            indices_filename = f"selected_indices_iter{config.CURRENT_ITERATION}.npy"
+            indices_path = os.path.join(config.CACHE_DIR, indices_filename)
+            print(f"Loading selected indices from: {indices_path}")
+            selected_indices = np.load(indices_path)
             selected_holdout_features = holdout_features[:, selected_indices]
-            
+            '''
             if scaler is not None:
                 print("Applying scaler to holdout features...")
                 # The debugging print statements are great for confirming scaling works!
@@ -100,7 +103,7 @@ def process_holdout_file(file_path, model, scaler,config):
                 print(f"After scaling - min: {selected_holdout_features.min():.4f}, max: {selected_holdout_features.max():.4f}")
                 print(f"After scaling - mean: {selected_holdout_features.mean():.4f}, std: {selected_holdout_features.std():.4f}")
             else:
-                print("WARNING: No scaler provided. Using raw features.")
+                print("WARNING: No scaler provided. Using raw features.")   '''
                 
         except Exception as e:
             print(f"error! Failed feature extraction for {record_id}: {e}")
@@ -108,7 +111,7 @@ def process_holdout_file(file_path, model, scaler,config):
         if config.USE_CACHE:
             save_cache(selected_holdout_features, cache_filename_selected_features_holdout, config.CACHE_DIR)
 
-    #print(f"******************************selected_holdout_features: {selected_holdout_features}")   #SAME      
+    print(f"******************************selected_holdout_features: {selected_holdout_features}")   #SAME      
 
     
     # 4. Make Inference

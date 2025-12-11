@@ -94,7 +94,7 @@ def preprocess(data, config, channel_info):
     is_multi_channel = isinstance(data, dict) and 'eeg' in data
 
     if is_multi_channel:
-        print("Processing multi-channel data (EEG + EOG + EMG)")
+        print("Processing multi-channel data (EEG + EOG (+ EMG))")
         return preprocess_multi_channel(data, config, channel_info)
     else:
         print("Processing single-channel data (backward compatibility)")

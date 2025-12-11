@@ -310,7 +310,7 @@ def extract_features(data, config,channel_info):
     is_multi_channel = isinstance(data, dict) and 'eeg' in data
 
     if is_multi_channel:
-        print("Processing multi-channel data (EEG + EOG )")
+        print("Processing multi-channel data (EEG + EOG (+ EMG))")
         return extract_multi_channel_features(data, config,fs_eeg,fs_eog,fs_emg,debug=False)
     else:
         print("Processing single-channel data (backward compatibility)")
