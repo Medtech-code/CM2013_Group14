@@ -23,7 +23,7 @@ def select_features(features, feature_names, config, labels=None, return_indices
         selected_features = features
         selected_indices = np.arange(features.shape[1])
 
-    elif config.CURRENT_ITERATION in [2, 3]:
+    elif config.CURRENT_ITERATION == 2:
         # Step 1: Variance threshold
         selector = VarianceThreshold(threshold=0.01)
         X_var = selector.fit_transform(features)
@@ -43,7 +43,7 @@ def select_features(features, feature_names, config, labels=None, return_indices
         
         selected_feature_names = [feature_names[i] for i in selected_indices]
 
-    elif config.CURRENT_ITERATION == 4:
+    elif config.CURRENT_ITERATION in [3,4]:
         if labels is None:
             raise ValueError("Labels are required for iteration 4 feature selection")
 
@@ -90,7 +90,7 @@ def select_features(features, feature_names, config, labels=None, return_indices
     else:
         return selected_features
 
-def drop_correlated_features(X, threshold=0.95):
+def drop_correlated_features(X, threshold=0.9):
     corr_matrix = np.corrcoef(X, rowvar=False)
     n_features = corr_matrix.shape[0]
     to_drop = set()
