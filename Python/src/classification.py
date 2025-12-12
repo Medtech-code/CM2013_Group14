@@ -17,6 +17,7 @@ from imblearn.pipeline import Pipeline as ImbPipeline
 import joblib
 from src.utils import save_cache, load_cache
 from sklearn.base import clone
+from sklearn.utils.class_weight import compute_class_weight, compute_sample_weight
 
 
 
@@ -142,7 +143,7 @@ def train_classifier(features, labels, all_record_ids, config):
         model = grid_search.best_estimator_
         print(f"Using SVM with params:{grid_search.best_estimator_}")
 
-    elif config.CURRENT_ITERATION >= 3:
+    elif config.CURRENT_ITERATION == 3:
         # Iteration 3+: Random Forest
         # TODO: Students should tune hyperparameters (n_estimators, max_depth, etc.)
         
@@ -159,7 +160,7 @@ def train_classifier(features, labels, all_record_ids, config):
             n_estimators=200,
         )),
         ]) 
-        
+        '''
         param_grid = {
             'classifier__n_estimators': [200, 400],
             'classifier__max_depth': [20, 30, 50],
@@ -179,7 +180,9 @@ def train_classifier(features, labels, all_record_ids, config):
             verbose=2
         )
         
-        grid_search.fit(features, labels, groups=all_record_ids)
+        grid_search.fit(features, labels, groups=all_record_ids)'''
+        base_pipe_rf.fit(features, labels)
+        model = base_pipe_rf
 
         print("\n" + "="*60)
         print(f"✅ Best RF Hyperparameters: {grid_search.best_params_}")
@@ -187,10 +190,44 @@ def train_classifier(features, labels, all_record_ids, config):
         print("="*60)
 
         # Best pipeline (SMOTE + scaler + RF with tuned params)
-        model = grid_search.best_estimator_
-        print(f"Using Random Forest with params:{grid_search.best_estimator_}")
+        #model = grid_search.best_estimator_
         
+        #print(f"Using Random Forest with params:{base_pipe_rf.best_estimator_}")
+        
+    # Assign higher misclassification cost to rare classes
+    # Compute class weights, pass as sample_weight during training
+    elif config.CURRENT_ITERATION == 4:# Random forest WITH Cost-sensitive learning
+        classes = np.unique(labels)
+        class_weights_arr = compute_class_weight(
+            class_weight='balanced',  # or 'balanced' / 'balanced_subsample'
+            classes=classes,
+            y=labels
+        )
+        class_weight_dict = {c: w for c, w in zip(classes, class_weights_arr)}
+        print("Class weights (global):", class_weight_dict)
 
+        # Your tuned params (hard-coded)
+        rf_clf = RandomForestClassifier(
+            random_state=42,
+            n_jobs=-1,
+            class_weight=class_weight_dict,  # cost-sensitive here
+            max_depth=20,
+            min_samples_leaf=3,
+            min_samples_split=2,
+            n_estimators=250,
+        )
+
+        # If you don't need SMOTE/scaler, just wrap RF in a pipeline
+        base_pipe_rf = ImbPipeline([
+            ('classifier', rf_clf),
+        ])
+
+        # Fit once on all data for the "base" model
+        base_pipe_rf.fit(features, labels)
+        model = base_pipe_rf
+        print("Using RandomForest with fixed tuned hyperparameters (no GridSearch).")
+        
+        
     else:
         raise ValueError(f"Invalid iteration: {config.CURRENT_ITERATION}")
 
@@ -225,7 +262,7 @@ def train_classifier(features, labels, all_record_ids, config):
     #smote resampling also for cross validation
     #smote = SMOTE(random_state=42)
     all_record_ids = np.array(all_record_ids)
-
+    
     for fold_idx, (train_idx, test_idx) in enumerate(logo.split(features, labels, groups=all_record_ids)):
         X_train, X_test = features[train_idx], features[test_idx]
         y_train, y_test = labels[train_idx], labels[test_idx]

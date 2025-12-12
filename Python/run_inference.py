@@ -32,11 +32,11 @@ def process_holdout_file(file_path, model, scaler,config):
     
     # 1. Load Hold-out Data
     try:
-        holdout_eeg_data, record_info, channel_info = load_holdout_data(file_path)
+        holdout_data, record_info, channel_info = load_holdout_data(file_path)
     except Exception as e:
         print(f"error! Failed to load {record_id}: {e}")
         return None, None
-    # DIFFERENT print(f"******************************holdout_eeg_data: {holdout_eeg_data}")# DIFFERENT 
+    # DIFFERENT print(f"******************************holdout_data: {holdout_data}")# DIFFERENT 
 
     # 2. Preprocessing (using the same logic as training)
     preprocessed_holdout_data = None
@@ -47,9 +47,9 @@ def process_holdout_file(file_path, model, scaler,config):
     if preprocessed_holdout_data is None:
         try:
             if config.CURRENT_ITERATION==1:
-                preprocessed_holdout_data = preprocess(holdout_eeg_data['eeg'][:,0,:], config, channel_info)
+                preprocessed_holdout_data = preprocess(holdout_data['eeg'][:,0,:], config, channel_info)
             else:
-                preprocessed_holdout_data=preprocess(holdout_eeg_data,config,channel_info)
+                preprocessed_holdout_data=preprocess(holdout_data,config,channel_info)
         except Exception as e:
             print(f"error! Failed preprocessing for {record_id}: {e}")
             return None, None   
@@ -76,7 +76,7 @@ def process_holdout_file(file_path, model, scaler,config):
             return None, None        
         if config.USE_CACHE:
             save_cache(holdout_features, cache_filename_features_holdout, config.CACHE_DIR)
-    print(f"******************************holdout_features: {holdout_features}")     #SAME     
+    print(f"******************************holdout_features: {holdout_features}")
 
     # Feature selection
     selected_holdout_features=None
@@ -190,10 +190,7 @@ def run_inference():
 
     predictions = np.array(predictions)
 
-
     # 5. Generate Submission File
-    
-    
     
     generate_submission_file(predictions, record_numbers, epoch_numbers, config)
 
