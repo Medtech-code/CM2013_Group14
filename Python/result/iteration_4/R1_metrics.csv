@@ -1,0 +1,7 @@
+Metric,Ground Truth,Predicted,Error
+Sleep_Onset,13.5,14.5,1.0
+REM_latency,96.5,39.5,57.0
+Total_Sleep_Time,6.258333333333334,5.65,0.6083333333333334
+Sleep_Efficiency,69.3444136657433,62.603878116343495,6.740535549399809
+WASO,152.5,188.0,35.5
+Awakenings,47.0,76.0,29.0

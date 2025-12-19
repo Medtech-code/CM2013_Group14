@@ -1,0 +1,21 @@
+===== OVERALL METRICS =====
+Accuracy: 0.7032
+Cohen's Kappa: 0.6098
+Macro F1: 0.6282
+Micro F1: 0.7032
+Weighted F1: 0.7343
+Matthews Correlation Coefficient: 0.6219
+
+===== PER-CLASS METRICS =====
+0: Precision=0.9594, Recall=0.7349, F1=0.8323
+1: Precision=0.1346, Recall=0.6836, F1=0.2249
+2: Precision=0.8142, Recall=0.6179, F1=0.7026
+3: Precision=0.7022, Recall=0.8554, F1=0.7712
+4: Precision=0.5531, Recall=0.6798, F1=0.6100
+
+===== CONFUSION MATRIX =====
+[[2553  598  146   35  142]
+ [  21  188   36    9   21]
+ [  60  473 2353  504  418]
+ [   1   11  189 1384   33]
+ [  26  127  166   39  760]]

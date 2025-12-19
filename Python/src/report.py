@@ -12,36 +12,26 @@ from sklearn.metrics import (
 import seaborn as sns
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
-
+import os
+output_dir = "result/reports"   
+os.makedirs(output_dir, exist_ok=True)
 def generate_report(model, selected_features, combined_labels, config, txt_filename=None):
-    """
-    Generate evaluation report and save it to a text file.
-    
-    Inputs:
-    - model: trained classifier
-    - selected_features: features used for prediction
-    - combined_labels: true labels
-    - config: optional config object (for class names)
-    - txt_filename: output text file
-    """
+
     iteration = getattr(config, "CURRENT_ITERATION", "unknown")
-    
-    # Default filename if not provided
+
     if txt_filename is None:
-        txt_filename = f"report_iteration_{iteration}.txt"
+        txt_filename = os.path.join(
+        output_dir, f"report_iteration_{iteration}.txt"
+    )
 
     y_pred = model.predict(selected_features)
     y_true = combined_labels
-
-    # Overall metrics
     acc = accuracy_score(y_true, y_pred)
     kappa = cohen_kappa_score(y_true, y_pred)
     f1_macro = f1_score(y_true, y_pred, average='macro')
     f1_micro = f1_score(y_true, y_pred, average='micro')
     f1_weighted = f1_score(y_true, y_pred, average='weighted')
     mcc = matthews_corrcoef(y_true, y_pred)
-
-    # Per-class metrics
     precision = precision_score(y_true, y_pred, average=None, zero_division=0)
     recall = recall_score(y_true, y_pred, average=None, zero_division=0)
     f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0)
@@ -64,18 +54,14 @@ def generate_report(model, selected_features, combined_labels, config, txt_filen
     for i, cls in enumerate(classes):
         report_lines.append(f"{cls}: Precision={precision[i]:.4f}, Recall={recall[i]:.4f}, F1={f1_per_class[i]:.4f}")
 
-    # Confusion matrix
     cm = confusion_matrix(y_true, y_pred)
     report_lines.append("\n===== CONFUSION MATRIX =====")
     report_lines.append(str(cm))
 
-    # Save to text file
     with open(txt_filename, "w") as f:
         f.write("\n".join(report_lines))
 
     print(f"Report saved to {txt_filename}")
-
-    # Optional: show confusion matrix plot
     plt.figure(figsize=(8,6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
                 xticklabels=classes, yticklabels=classes)

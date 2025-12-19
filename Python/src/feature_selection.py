@@ -3,12 +3,12 @@ import pandas as pd
 from sklearn.feature_selection import VarianceThreshold, SelectKBest, f_classif
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-
+import config
+import os
+output_dir = f"result/iteration_{config.CURRENT_ITERATION}"
+os.makedirs(output_dir, exist_ok=True)
 def select_features(features, feature_names, config, labels=None, return_indices=False):
-    """
-    Select features and optionally save them as CSV with feature names.
-    If return_indices=True, also return indices of selected features.
-    """
+
     print(f"Selecting features for iteration {config.CURRENT_ITERATION}...")
     print(f"Input features shape: {features.shape}")
 
@@ -16,7 +16,6 @@ def select_features(features, feature_names, config, labels=None, return_indices
     selected_feature_names = feature_names
 
     if features.shape[1] == 0:
-        print("WARNING: No features to select from!")
         selected_features = features
 
     elif config.CURRENT_ITERATION == 1:
@@ -24,17 +23,12 @@ def select_features(features, feature_names, config, labels=None, return_indices
         selected_indices = np.arange(features.shape[1])
 
     elif config.CURRENT_ITERATION == 2:
-        # Step 1: Variance threshold
         selector = VarianceThreshold(threshold=0.01)
         X_var = selector.fit_transform(features)
-        
-        # Step 2: Drop highly correlated features
         X_corr, kept_features = drop_correlated_features(X_var, threshold=0.95)
-        
-        # Step 3: Select top 50 features based on variance
         feature_variances = X_corr.var(axis=0)
         if len(feature_variances) > 50:
-            top_indices = np.argsort(feature_variances)[::-1][:50]  # indices of top 50
+            top_indices = np.argsort(feature_variances)[::-1][:50] 
             selected_features = X_corr[:, top_indices]
             selected_indices = [kept_features[i] for i in top_indices]
         else:
@@ -76,14 +70,18 @@ def select_features(features, feature_names, config, labels=None, return_indices
 
         print(f"Iteration 4 Selected features shape: {selected_features.shape}")
 
-    # --- Save selected features as CSV ---
     try:
         df_selected = pd.DataFrame(selected_features, columns=selected_feature_names)
-        csv_filename = f"selected_features_iter{config.CURRENT_ITERATION}.csv"
+        csv_filename = os.path.join(
+            output_dir,
+            f"selected_features_iter{config.CURRENT_ITERATION}.csv"
+        )
+
         df_selected.to_csv(csv_filename, index=False)
         print(f"Saved selected features CSV: {csv_filename}")
+        print(f"Saved selected features CSV: {csv_filename}")
     except Exception as e:
-        print(f"Failed to save CSV: {e}")
+                print(f"Failed to save CSV: {e}")
 
     if return_indices:
         return selected_features, selected_indices

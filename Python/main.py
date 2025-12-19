@@ -1,4 +1,3 @@
-# "C:\Users\prart\Signals\Scripts\python.exe"
 import config
 from src.data_loader import load_training_data
 from src.preprocessing import preprocess
@@ -25,30 +24,23 @@ def main():
 
     print(f"--- Sleep Scoring Pipeline - Iteration {config.CURRENT_ITERATION} ---")
 
-    # 1. Load Data
-    # Example uses R1.edf and R1.xml - students should adapt for their dataset
     print("\n=== STEP 1: DATA LOADING ===")
     training_dir = config.TRAINING_DIR
-    edf_file = list(Path(training_dir).glob('*.edf')) #this looks for edf files in data/training
+    edf_file = list(Path(training_dir).glob('*.edf')) 
 
     all_epochs = []
     all_labels = []
     all_record_ids = []
-    #I have added this:
     multi_channel_list = [] 
 
     for edf_path in edf_file:
-        xml_path = edf_path.with_suffix('.xml') #you get the xml file related to the edf file
-        record_id = edf_path.stem #you extract the name of the file without the extension, R1.edf - R1
+        xml_path = edf_path.with_suffix('.xml')
+        record_id = edf_path.stem
         
-    #edf_file = os.path.join(config.SAMPLE_DIR, "S01.edf")  # Example EDF file
-    #xml_file = os.path.join(config.SAMPLE_DIR, "S01.xml")  # Corresponding annotation file
-
-    # Handle both new multi-channel format and old single-channel format for compatibility
         try:
             multi_channel_data, labels, channel_info = load_training_data(str(edf_path), str(xml_path))
-            #I have added this:
-            multi_channel_list.append(multi_channel_data)#Save the whole dictionary
+        
+            multi_channel_list.append(multi_channel_data)
             print(f"Multi-channel data loaded:")
             print(f"  EEG: {multi_channel_data['eeg'].shape}")
             print(f"Labels shape: {labels.shape}")
@@ -58,8 +50,7 @@ def main():
             print("Labels shape", labels.shape)
             print("First 10 labels:", labels[:10])
             
-            # For pipeline compatibility, use EEG data as primary signal
-            eeg_data = multi_channel_data['eeg'][:, 0, :]  # Use first EEG channel for now
+            eeg_data = multi_channel_data['eeg'][:, 0, :]  
             print("unique values:", np.unique(eeg_data)[:10])
             print(f"Using EEG channel 1 for pipeline: {eeg_data.shape}")
             all_epochs.append(eeg_data)
@@ -68,12 +59,8 @@ def main():
       
 
         except (ValueError, TypeError):
-            # Fallback to old format if multi-channel not implemented
             eeg_data, labels = load_training_data(edf_file, xml_path)
             print(f"Single-channel data loaded: {eeg_data.shape}, Labels: {labels.shape}")
-
-#    combined_epochs = np.concatenate(all_epochs, axis=0)
-#    combined_labels = np.concatenate(all_labels, axis=0)
 
 
     if config.CURRENT_ITERATION == 1:
@@ -91,8 +78,7 @@ def main():
         combined_labels = np.concatenate(all_labels, axis=0)
 
 
-    # Print label distribution
-    unique, counts = np.unique(combined_labels, return_counts=True) # finds all unique values in the combined_labels array and counts how many times each appears.
+    unique, counts = np.unique(combined_labels, return_counts=True) 
     stage_names = ['Wake', 'N1', 'N2', 'N3', 'REM']
     total = combined_labels.size
 
@@ -101,16 +87,6 @@ def main():
         percent = 100 * count / total
         print(f"  {stage}: {count} epochs ({percent:.1f}%)")
 
-
-    #print("\nEpochs shape:", combined_epochs.shape)
-    #print("Labels shape:", combined_labels.shape)
-
-    #if combined_epochs.shape[0] != combined_labels.shape[0]:
-    #    print("Warning: Number of epochs does not match number of labels!")
-    #else:
-    #    print("\nEpochs and labels are correctly aligned.")
-
-    # Print shapes appropriately:
     if isinstance(combined_epochs, dict):
         print("\nEEG shape:", combined_epochs['eeg'].shape)
         print("EOG shape:", combined_epochs['eog'].shape)
@@ -123,15 +99,12 @@ def main():
 
     print("Labels shape:", combined_labels.shape)
 
-    # Alignment check:
     if num_epochs != combined_labels.shape[0]:
         print("Warning: Number of epochs does not match number of labels!")
     else:
         print("\nEpochs and labels are correctly aligned.")
 
 
-    
-    # 2. Preprocessing
     print("\n=== STEP 2: PREPROCESSING ===")
     preprocessed_data = None
     cache_filename_preprocess = f"preprocessed_data_iter{config.CURRENT_ITERATION}.joblib"
@@ -152,8 +125,6 @@ def main():
 
     if preprocessed_data is None:
         preprocessed_data = preprocess(combined_epochs, config, channel_info)
-        # print("EEG preprocessed data shape:", preprocessed_data['eeg'].shape)
-        # print("EOG preprocessed data shape:", preprocessed_data['eog'].shape)
         if config.USE_CACHE:
             save_cache(preprocessed_data, cache_filename_preprocess, config.CACHE_DIR)
             print("Saved preprocessed data to cache")
@@ -161,12 +132,8 @@ def main():
 
     print("\n=== STEP 3: FEATURE EXTRACTION ===")
     cache_filename_features = f"features_iter{config.CURRENT_ITERATION}.joblib"
-
-    # Always initialize
     features = None
     feature_names = None
-
-    # Try loading (features, feature_names) from cache
     if config.USE_CACHE:
         cached = load_cache(cache_filename_features, config.CACHE_DIR)
         if cached is not None:
@@ -174,7 +141,6 @@ def main():
             print("Loaded features + feature_names from cache")
             print(f"Features shape from cache: {features.shape}")
 
-    # If not loaded, extract new features
     if features is None:
         if config.CURRENT_ITERATION == 2:
             eeg = preprocessed_data['eeg'][:, 0, :]
@@ -188,13 +154,11 @@ def main():
         else:
             print(f"Extracted features shape: {features.shape}")
 
-        # Save (features, feature_names)
         if config.USE_CACHE:
             save_cache((features, feature_names), cache_filename_features, config.CACHE_DIR)
             print("Saved features + feature_names to cache")
 
 
-    # === STEP 4: FEATURE SELECTION ===
     print("\n=== STEP 4: FEATURE SELECTION ===")
 
     cache_filename = f"features_selected_iter{config.CURRENT_ITERATION}.joblib"
@@ -207,7 +171,7 @@ def main():
         if cached is not None:
             selected_features = cached
             try:
-                selected_indices = np.load(os.path.join(config.CACHE_DIR, indices_filename))
+                selected_indices = np.load(os.path.join(config.CACHE_DIR, indices_filename),allow_pickle=True)
                 print("Loaded selected features and indices from cache")
             except FileNotFoundError:
                 print("Loaded selected features from cache, but no indices file found")
@@ -216,7 +180,6 @@ def main():
     if selected_features is None:
 
         if config.CURRENT_ITERATION == 1:
-            # No selection in iteration 1
             selected_features = features
             selected_indices = np.arange(features.shape[1])
             print("Iteration 1: no selection")
@@ -239,7 +202,6 @@ def main():
 
             print(f"Selected features shape: {selected_features.shape}")
 
-    # 5. Classification
     print("\n=== STEP 5: CLASSIFICATION ===")
     if selected_features.shape[1] > 0:
         cache_filename_model = f"model_iter{config.CURRENT_ITERATION}.joblib"
@@ -256,25 +218,14 @@ def main():
         print("Students must implement feature extraction first.")
         model = None
 
-    # 6. Visualization
     print("\n=== STEP 6: VISUALIZATION ===")
     if model is not None:
-        #visualize_results(model, selected_features, combined_labels, config)
         print()
     else:
         print("Skipping visualization - no trained model")
-
-    # 7. Report Generation
-    print("\n=== STEP 7: PROCESSING LOG & REPORT GENERATION ===")
-
-    # Restore the original stdout
-    #sys.stdout = original_stdout
-
-    # Get the captured output from the buffer
-    #processing_log = stdout_buffer.getvalue()   
+    print("\n=== STEP 7: PROCESSING LOG & REPORT GENERATION ===") 
      
     if model is not None:
-        #generate_report(model, selected_features, labels, config, processing_log)
         generate_report(model, selected_features, combined_labels, config, txt_filename=None)
 
     else:
@@ -282,8 +233,6 @@ def main():
 
     print("\n" + "="*50)
     print("PIPELINE FINISHED")
-    if model is None:
-        print("⚠️  Students need to implement missing components!")
     print("="*50)
 
 if __name__ == "__main__":
